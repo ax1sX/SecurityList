@@ -42,3 +42,8 @@ POST /OfficeServer
 (10) 文件上传
 POST /page/exportImport/uploadOperation.jsp
 ```
+
+#### 代码审计特点 ####
+(1) jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
+(2) 管理员账号位于表HrmResourceManager，密码为md5加密
+
