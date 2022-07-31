@@ -39,4 +39,6 @@ POST /mobile/DBconfigReader.jsp
 POST /workrelate/plan/util/uploaderOperate.jsp
 POST /OfficeServer
 
+(10) 文件上传
+POST /page/exportImport/uploadOperation.jsp
 ```
