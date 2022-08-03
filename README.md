@@ -5,6 +5,13 @@
 #### 补丁 ####
 https://www.weaver.com.cn/cs/securityDownload.html?src=cn
 
+补丁与对应版本下载，在官网上查看发布的时间和版本，拼接成`日期_版本.zip?v=日期03`，访问url进行下载
+https://www.weaver.com.cn/cs/package/Ecology_security_20220731_v10.52.zip?v=2022073103
+
+v10.39-46版本补丁解压密码：`Weaver@Ecology201205`
+早期补丁解压密码：`Weaver#2012!@#`
+v10.38之前的补丁解压密码未知
+
 #### 历史漏洞 ####
 ```
 (1) BeanShell RCE
