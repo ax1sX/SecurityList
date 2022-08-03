@@ -79,6 +79,26 @@ Resin目录下/conf/resin.properties文件中找到`jvm_args`参数，在参数�
 -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
 ```
 
+### 路由特点 ###
+（1）resin.xml
+服务器为resin，查看resin.xml。它配置了invoker servlet，即一种默认访问servlet的方式，可以运行没有在web.xml中配置的servlet。被访问的Java类需要满足两个要求 a.采用完全限定名 b.实现servlet或HttpServlet相关接口
+```
+<web-app id="/" root-directory="C:\Users\Administrator\Desktop\Ecology1907\ecology">
+    <servlet-mapping url-pattern='/weaver/*' servlet-name='invoker'/>
+    <form-parameter-max>100000</form-parameter-max>
+</web-app>
+```
+所以lib目录下的bsh-2.0b4.jar可以按照全限定类名`/bsh.servlet.BshServlet`访问`BshServlet`类，该类实现了`HttpServlet`接口
+```
+public class BshServlet extends HttpServlet {
+    public void doGet(HttpServletRequest var1, HttpServletResponse var2) throws ServletException, IOException {
+        String var3 = var1.getParameter("bsh.script");
+        ...
+        var8 = this.evalScript(var3, var10, var7, var1, var2);
+    }
+}
+```
+
 ### 安全策略 ###
 
 泛微的安全策略与如下过滤器有关
