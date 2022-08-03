@@ -65,23 +65,23 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 ### 代码审计特点 ###
 
-(1) jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
 
-(2) 管理员账号位于表HrmResourceManager，密码为md5加密
 
-(3) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
+(1) 管理员账号位于表HrmResourceManager，密码为md5加密
 
-(4) 环境信息查看：`/security/monitor/Monitor.jsp`
+(2) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
 
-(5) 代码调试    
+(3) 环境信息查看：`/security/monitor/Monitor.jsp`
+
+(4) 代码调试    
 Resin目录下/conf/resin.properties文件中找到`jvm_args`参数，在参数值中加入
 ```
 -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
 ```
 
 ### 路由特点 ###
-（1）resin.xml
-服务器为resin，查看resin.xml。它配置了invoker servlet，即一种默认访问servlet的方式，可以运行没有在web.xml中配置的servlet。被访问的Java类需要满足两个要求 a.采用完全限定名 b.实现servlet或HttpServlet相关接口
+（1）`/weaver`    
+服务器为resin，查看resin.xml。它配置了invoker servlet，即一种默认访问servlet的方式，可以运行没有在web.xml中配置的servlet。访问路径为`/weaver/*`，`*`后是被访问的Java类，该类需要满足两个要求 a.采用完全限定名 b.实现servlet或HttpServlet相关接口。
 ```
 <web-app id="/" root-directory="C:\Users\Administrator\Desktop\Ecology1907\ecology">
     <servlet-mapping url-pattern='/weaver/*' servlet-name='invoker'/>
@@ -98,6 +98,10 @@ public class BshServlet extends HttpServlet {
     }
 }
 ```
+`/ecology/classbean/`目录下均为Java类，想要访问该目录下的类都采用`/weaver`的方式
+
+（2）`xx.jsp`     
+jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
 
 ### 安全策略 ###
 
