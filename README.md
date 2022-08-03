@@ -73,6 +73,12 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 (4) 环境信息查看：`/security/monitor/Monitor.jsp`
 
+(5) 代码调试    
+Resin目录下/conf/resin.properties文件中找到`jvm_args`参数，在参数值中加入
+```
+-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
+```
+
 ### 安全策略 ###
 
 泛微的安全策略与如下过滤器有关
