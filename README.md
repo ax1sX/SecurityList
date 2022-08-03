@@ -1,18 +1,22 @@
 # SecurityList
 
-### 泛微Ecology ###
+## 泛微Ecology ##
 
-#### 补丁 ####
-https://www.weaver.com.cn/cs/securityDownload.html?src=cn
+### 补丁 ###
 
-补丁与对应版本下载，在官网上查看发布的时间和版本，拼接成`日期_版本.zip?v=日期03`，访问url进行下载
-https://www.weaver.com.cn/cs/package/Ecology_security_20220731_v10.52.zip?v=2022073103
+**官方补丁下载**  
+https://www.weaver.com.cn/cs/securityDownload.html?src=cn  
+**老补丁下载方式**     
+根据官网中补丁发布的时间和版本，拼接成`日期_版本.zip?v=日期03`，访问url进行下载，如：  
+https://www.weaver.com.cn/cs/package/Ecology_security_20220731_v10.52.zip?v=2022073103  
+**补丁解压密码**  
+```
+v10.39-46: Weaver@Ecology201205
+<v10.38: 未知
+old version: Weaver#2012!@#
+``` 
 
-v10.39-46版本补丁解压密码：`Weaver@Ecology201205`
-早期补丁解压密码：`Weaver#2012!@#`
-v10.38之前的补丁解压密码未知
-
-#### 历史漏洞 ####
+### 历史漏洞 ###
 ```
 (1) BeanShell RCE
 POST /weaver/bsh.servlet.BshServlet
@@ -59,7 +63,7 @@ GET /api/ec/dev/locale/getLabelByModule
 POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 ```
 
-#### 代码审计特点 ####
+### 代码审计特点 ###
 
 (1) jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
 
@@ -67,7 +71,7 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 (3) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
 
-#### 安全策略 ####
+### 安全策略 ###
 
 泛微的安全策略与如下过滤器有关
 
