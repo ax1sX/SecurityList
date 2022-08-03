@@ -18,7 +18,7 @@ old version: Weaver#2012!@#
 
 ### 历史漏洞 ###
 ```
-(1) BeanShell RCE
+(1) BeanShell RCE (2019.09.17修复)
 POST /weaver/bsh.servlet.BshServlet
 
 (2) Soap XStream RCE: 
@@ -37,16 +37,16 @@ Ref: https://mp.weixin.qq.com/s?__biz=MzkxMzIzNTU5Mg==&mid=2247483666&idx=1&sn=e
 POST /weaver/weaver.workflow.exceldesign.ExcelUploadServlet?method=uploadFile&savefile=pass.jsp
 Ref:https://mp.weixin.qq.com/s?__biz=MzkxMzIzNTU5Mg==&mid=2247483674&idx=1&sn=ce1c56a670587df0a33201a62a4b6e2d&chksm=c1018afdf67603eb15bea96e668bc0279b63f241654beb000da3c7e7333d8545c4c3217d0576&scene=178&cur_album_id=1824092566640705544#rd
 
-(6) 数据库配置文件读取
+(6) 数据库配置文件读取 (2019.10.24修复)
 POST /mobile/DBconfigReader.jsp
 
-(7) Oracle注入
+(7) Oracle注入 (2019.10.10修复)
 /mobile/browser/WorkflowCenterTreeData.jsp?node=wftype_1&scope=2333
 
 (8) 日志泄漏
 /hrm/kq/gethrmkq.jsp?filename=1
 
-(9) 文件上传
+(9) 文件上传 （2022.06.18修复）
 POST /workrelate/plan/util/uploaderOperate.jsp
 POST /OfficeServer
 
