@@ -71,6 +71,8 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 (3) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
 
+(4) 环境信息查看：`/security/monitor/Monitor.jsp`
+
 ### 安全策略 ###
 
 泛微的安全策略与如下过滤器有关
