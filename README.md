@@ -48,12 +48,31 @@ POST /mobile/plugin/VerifyQuickLogin.jsp
 (12) SQL注入
 GET /api/ec/dev/locale/getLabelByModule
 
-(13) 代码指向
+(13) 代码执行
 POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 ```
 
 #### 代码审计特点 ####
 
 (1) jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
+
 (2) 管理员账号位于表HrmResourceManager，密码为md5加密
 
+(3) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
+
+#### 安全策略 ####
+
+泛微的安全策略与如下过滤器有关
+
+```xml
+<filter>
+    <filter-name>SecurityFilter</filter-name>
+    <filter-class>weaver.filter.SecurityFilter</filter-class>
+</filter>
+<filter-mapping>
+    <filter-name>SecurityFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+安全策略的具体内容分为两种，规则形式的`xml`文件（位于`WEB-INF/securityRule`），和实现`weaver.security.rules.BaseRule`接口的类（位于`WEB-INF/myclasses/weaver/security/rules/ruleImp`）。
