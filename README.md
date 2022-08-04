@@ -65,8 +65,6 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 ### 代码审计特点 ###
 
-
-
 (1) 管理员账号位于表HrmResourceManager，密码为md5加密
 
 (2) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
@@ -117,6 +115,10 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 ```
 
 那么可以通过`/services/DocService`的方式访问该接口。
+
+（4）`/api/*`
+
+由`@Path`注解定义的一系列`REST`接口，可以在`ecology/WEB-INF/Api.xls`文件中查看所有的`api`接口路径和相关类。
 
 ### 安全策略 ###
 
