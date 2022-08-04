@@ -16,7 +16,8 @@ v10.39-46: Weaver@Ecology201205
 old version: Weaver#2012!@#
 ``` 
 **验证码**
-查看ecology\WEB-INF\code.key文件。
+
+查看ecology/WEB-INF/code.key文件。
 
 ### 历史漏洞 ###
 ```
@@ -105,7 +106,6 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 
 （3）`/services/*`
 `/services/*`的服务配置由`org.codehaus.xfire.transport.http.XFireConfigurableServlet`读取`classbean/META-INF/xfire/services.xml`文件进行加载创建。配置文件各服务节点结构大致如下
-
 ```xml
     <service> 
         <name>DocService</name>  
@@ -115,12 +115,18 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
         <serviceFactory>org.codehaus.xfire.annotations.AnnotationServiceFactory</serviceFactory> 
     </service>
 ```
-
 那么可以通过`/services/DocService`的方式访问该接口。
 
 （4）`/api/*`
-
 由`@Path`注解定义的一系列`REST`接口，可以在`ecology/WEB-INF/Api.xls`文件中查看所有的`api`接口路径和相关类。
+
+（5）`/*.do`
+由ecology/WEB-INF/struts-config.xml定义的接口，
+```xml
+<action path="/getProcess" type="com.weaver.action.EcologyUpgrade" parameter="getProcess" >
+</action>
+```
+可通过/<path>.do的方式访问。
 
 ### 安全策略 ###
 
