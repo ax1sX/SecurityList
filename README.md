@@ -121,7 +121,7 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 由`@Path`注解定义的一系列`REST`接口，可以在`ecology/WEB-INF/Api.xls`文件中查看所有的`api`接口路径和相关类。
 
 （5）`/*.do`
-由ecology/WEB-INF/struts-config.xml定义的接口，
+由实现了`weaver.interfaces.workflow.action.Action`接口的`action`，由ecology/WEB-INF/service/\*.xml所配置
 ```xml
 <action path="/getProcess" type="com.weaver.action.EcologyUpgrade" parameter="getProcess" >
 </action>
