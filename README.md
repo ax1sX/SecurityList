@@ -15,6 +15,8 @@ v10.39-46: Weaver@Ecology201205
 <v10.38: 未知
 old version: Weaver#2012!@#
 ``` 
+**验证码**
+查看ecology\WEB-INF\code.key文件。
 
 ### 历史漏洞 ###
 ```
