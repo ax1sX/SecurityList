@@ -103,6 +103,21 @@ public class BshServlet extends HttpServlet {
 （2）`xx.jsp`     
 jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
 
+（3）`/services/*`
+`/services/*`的服务配置由`org.codehaus.xfire.transport.http.XFireConfigurableServlet`读取`classbean/META-INF/xfire/services.xml`文件进行加载创建。配置文件各服务节点结构大致如下
+
+```xml
+    <service> 
+        <name>DocService</name>  
+        <namespace>http://localhost/services/DocService</namespace>  
+        <serviceClass>weaver.docs.webservices.DocService</serviceClass>  
+        <implementationClass>weaver.docs.webservices.DocServiceImpl</implementationClass>  
+        <serviceFactory>org.codehaus.xfire.annotations.AnnotationServiceFactory</serviceFactory> 
+    </service>
+```
+
+那么可以通过`/services/DocService`的方式访问该接口。
+
 ### 安全策略 ###
 
 泛微的安全策略与如下过滤器有关
