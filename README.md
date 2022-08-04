@@ -65,7 +65,7 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 ### 代码审计特点 ###
 
-(1) 管理员账号位于表HrmResourceManager，密码为md5加密
+(1) 管理员账号位于表HrmResourceManager，密码为md5加密，彩虹表无法解码的情况下，可直接修改并重新登录。
 
 (2) 泛微E9版本开始新增了/api路由，与@Path注解对应，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
 
