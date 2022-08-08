@@ -151,7 +151,10 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 
 安全策略的具体内容分为两种，规则形式的`xml`文件（位于`WEB-INF/securityRule`），和实现`weaver.security.rules.BaseRule`接口的类（位于`WEB-INF/myclasses/weaver/security/rules/ruleImp`）。
 
+安全策略的加载位于`SecurityMain#initFilterBean方法`，加载顺序如下
 
-
+读取配置`ecology\WEB-INF\weaver_security_config.xml`
+读取配置`ecology\WEB-INF\weaver_security_rules.xml和ecology\WEB-INF\securityRule\{Version}\`
+初始化自定义规则`ruleImp`，调用其`initConfig`方法。
 
 
