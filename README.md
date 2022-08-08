@@ -67,6 +67,9 @@ POST /api/integration/workflowflow/getInterfaceRegisterCustomOperation
 
 (14) 文件读取
 GET /weaver/org.springframework.web.servlet.ResourceServlet?resource=/WEB-INF/prop/weaver.properties
+
+(15) SQL注入
+/cpt/manage/validate.jsp
 ```
 
 ### 代码审计特点 ###
