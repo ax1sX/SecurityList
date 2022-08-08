@@ -2,6 +2,8 @@
 
 ## 泛微Ecology ##
 
+漏洞指纹: `Set-Cookie: ecology_JSessionId=`
+
 ### 补丁 ###
 
 **官方补丁下载**  
