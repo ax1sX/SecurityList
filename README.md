@@ -15,6 +15,8 @@ Resin目录下/conf/resin.properties文件中找到`jvm_args`参数，在参数�
 * 环境安装验证码: `/ecology/WEB-INF/code.key`文件中        
 * 管理员账号: 位于数据表`HrmResourceManager`，密码为`md5`加密，无法解码的情况下，可通过`/api/ec/dev/locale/getLabelByModule`路径的sql注入漏洞修改密码     
 * 环境信息查看: 访问`http://ip:port/security/monitor/Monitor.jsp`，包含操作系统版本、ecology版本、web中间件版本、JVM版本、客户端软件和规则库版本
+* 编译后的class文件: `/ecology/classbean/ `文件夹下
+* 系统运行依赖的jar: `/ecology/WEB-INF/lib/` 文件夹下
 
 ### (4) 路由特点 ###
 （1）`/weaver`    
@@ -86,6 +88,9 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 读取配置`ecology\WEB-INF\weaver_security_rules.xml和ecology\WEB-INF\securityRule\{Version}\`     
 初始化自定义规则`ruleImp`，调用其`initConfig`方法。        
 
+安全补丁的日志: `/ecology/WEB-INF/securitylog`     
+
+    
 ### (6) 补丁 ###
 官方网址: https://www.weaver.com.cn/cs/securityDownload.html?src=cn  
 老补丁下载方式: 根据官网中补丁发布的时间和版本，拼接成`日期_版本.zip?v=日期03`，访问url进行下载，如：  
