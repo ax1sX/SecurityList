@@ -90,6 +90,21 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 
 安全补丁的日志: `/ecology/WEB-INF/securitylog`     
 
+SQL注入过滤策略       
+`/ecology/WEB-INF/securityRule/Rule/weaver_security_for_sqlinjection_rules.xml`
+```
+<rules>
+    <!--破坏性sql语句检查-->
+    <rule>exec[^a-zA-Z]|insert[^a-zA-Z]into[^a-zA-Z].*?values|delete[^a-zA-Z].*?from|update[^a-zA-Z].*?set|truncate[^a-zA-Z]</rule>
+    <!--常见注入字符检查-->
+    <rule>[^a-zA-Z]count\(|[^a-zA-Z]chr\(|[^a-zA-Z]mid\(|[^a-zA-Z]char[\s+\(]|[^a-zA-Z]net[^a-zA-Z]user[^a-zA-Z]|[^a-zA-Z]xp_cmdshell[^a-zA-Z]|\W/add\W|[^a-zA-Z]master\.dbo\.xp_cmdshell|net[^a-zA-Z]localgroup[^a-zA-Z]administrators|DBMS_PIPE\.|[^a-zA-Z]len\s*\(|[^a-zA-Z]left\s*\(|[^a-zA-Z]right\s*\(|str(c|ing)?\s*\(|ascii\s*\(|UNION([^a-zA-Z]ALL[^a-zA-Z])?SELECT[^a-zA-Z]NULL|[a-zA-Z0-9_\-]+\s*=\s*0x(2D|3[0-9]|4[1-F1-f]|5[1-A1-a]|6[1-F1-f]|7[1-A][1-a])|UTL_HTTP\s*\(|MAKE_SET\s*\(|ELTs*\(|IIF\s*\(|(PG_)?SLEEP\s*\(|DBMS_LOCK\s*\.|USER_LOCK\s*\.|[LR]LIKE\s*\(|CONCAT(_WS)?\s*\(|GREATEST\s*\(|IF(NULL)?\s*\(|EXTRACTVALUE\s*\(|UPDATEXML\s*\(|WAITFOR\s*DELAY|ANALYSE\s*\(|UNION\s+(ALL\s+)?SELECT</rule>
+    <!--typical SQL injection detect-->
+    <rule>\w*((\%27))((\%6F)|(\%4F))((\%72)|(\%52))</rule>
+    <rule>((\%27)|('))union</rule>
+    <rule>substrb\(</rule>
+</rules>
+```
+
     
 ### (6) 补丁 ###
 官方网址: https://www.weaver.com.cn/cs/securityDownload.html?src=cn  
