@@ -2,21 +2,21 @@
 
 ## 泛微Ecology ##
 
-### 漏洞指纹 ###
+### (1) 漏洞指纹 ###
 `Set-Cookie: ecology_JSessionId=`
 
-### 调试方法 ###  
+### (2) 调试方法 ###  
 Resin目录下/conf/resin.properties文件中找到`jvm_args`参数，在参数值中加入
 ```
 -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
 ```
 
-### 关键数据 ###
+### (3) 关键数据 ###
 * 环境安装验证码: `/ecology/WEB-INF/code.key`文件中        
 * 管理员账号: 位于数据表`HrmResourceManager`，密码为`md5`加密，无法解码的情况下，可通过`/api/ec/dev/locale/getLabelByModule`路径的sql注入漏洞修改密码     
 * 环境信息查看: 访问`http://ip:port/security/monitor/Monitor.jsp`，包含操作系统版本、ecology版本、web中间件版本、JVM版本、客户端软件和规则库版本
 
-### 路由特点 ###
+### (4) 路由特点 ###
 （1）`/weaver`    
 服务器为resin，查看resin.xml。它配置了invoker servlet，即一种默认访问servlet的方式，可以运行没有在web.xml中配置的servlet。访问路径为`/weaver/*`，`*`后是被访问的Java类，该类需要满足两个要求 a.采用完全限定名 b.实现servlet或HttpServlet相关接口。
 ```
@@ -37,10 +37,10 @@ public class BshServlet extends HttpServlet {
 ```
 `/ecology/classbean/`目录下均为Java类，想要访问该目录下的类都采用`/weaver`的方式
 
-（2）`xx.jsp`     
+（2）`/xx.jsp`     
 jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路为`D:/ecology/addressbook/AddressBook.jsp`，那么该jsp的访问路径为`http://ip:port/addressbook/AddressBook.jsp`
 
-（3）`/services/*`
+（3）`/services/*`        
 `/services/*`的服务配置由`org.codehaus.xfire.transport.http.XFireConfigurableServlet`读取`classbean/META-INF/xfire/services.xml`文件进行加载创建。配置文件各服务节点结构大致如下
 ```xml
     <service> 
@@ -53,10 +53,10 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 ```
 那么可以通过`/services/DocService`的方式访问该接口。
 
-（4）`/api/*`
+（4）`/api/*`     
 由`@Path`注解定义的一系列`REST`接口，可以在`ecology/WEB-INF/Api.xls`文件中查看所有的`api`接口路径和相关类。泛微E9版本开始新增了/api路由，在旧版本中，该路由存在大小写绕过鉴权的漏洞。
 
-（5）`/*.do`
+（5）`/*.do`      
 由实现了`weaver.interfaces.workflow.action.Action`接口的`action`，由ecology/WEB-INF/service/\*.xml所配置
 ```xml
 <action path="/getProcess" type="com.weaver.action.EcologyUpgrade" parameter="getProcess" >
@@ -64,7 +64,41 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 ```
 可通过/<path>.do的方式访问。
 
-### 历史漏洞 ###
+### (5) 安全策略 ###
+
+安全过滤器(防火墙)
+```xml
+<filter>
+    <filter-name>SecurityFilter</filter-name>
+    <filter-class>weaver.filter.SecurityFilter</filter-class>
+</filter>
+<filter-mapping>
+    <filter-name>SecurityFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+安全策略的具体内容分为两种，规则形式的`xml`文件（位于`WEB-INF/securityRule`），和实现`weaver.security.rules.BaseRule`接口的类（位于`WEB-INF/myclasses/weaver/security/rules/ruleImp`）。      
+
+安全策略的加载位于`SecurityMain#initFilterBean方法`，加载顺序如下
+
+读取配置`ecology\WEB-INF\weaver_security_config.xml`        
+读取配置`ecology\WEB-INF\weaver_security_rules.xml和ecology\WEB-INF\securityRule\{Version}\`     
+初始化自定义规则`ruleImp`，调用其`initConfig`方法。        
+
+### (6) 补丁 ###
+官方网址: https://www.weaver.com.cn/cs/securityDownload.html?src=cn  
+老补丁下载方式: 根据官网中补丁发布的时间和版本，拼接成`日期_版本.zip?v=日期03`，访问url进行下载，如：  
+https://www.weaver.com.cn/cs/package/Ecology_security_20220731_v10.52.zip?v=2022073103  
+补丁解压密码
+```
+v10.39-46: Weaver@Ecology201205
+<v10.38: 未知
+old version: Weaver#2012!@#
+``` 
+补丁安装: 补丁解压后，替换ecology文件夹中的对应内容
+
+### (7) 历史漏洞 ###
 ```
 (1) BeanShell RCE (2019.09.17修复)
 POST /weaver/bsh.servlet.BshServlet
@@ -116,42 +150,3 @@ GET /weaver/org.springframework.web.servlet.ResourceServlet?resource=/WEB-INF/pr
 (15) SQL注入
 /cpt/manage/validate.jsp
 ```
-
-
-
-
-
-
-### 安全策略 ###
-
-泛微的安全策略与如下过滤器有关
-
-```xml
-<filter>
-    <filter-name>SecurityFilter</filter-name>
-    <filter-class>weaver.filter.SecurityFilter</filter-class>
-</filter>
-<filter-mapping>
-    <filter-name>SecurityFilter</filter-name>
-    <url-pattern>/*</url-pattern>
-</filter-mapping>
-```
-
-安全策略的具体内容分为两种，规则形式的`xml`文件（位于`WEB-INF/securityRule`），和实现`weaver.security.rules.BaseRule`接口的类（位于`WEB-INF/myclasses/weaver/security/rules/ruleImp`）。
-
-安全策略的加载位于`SecurityMain#initFilterBean方法`，加载顺序如下
-
-读取配置`ecology\WEB-INF\weaver_security_config.xml`
-读取配置`ecology\WEB-INF\weaver_security_rules.xml和ecology\WEB-INF\securityRule\{Version}\`
-初始化自定义规则`ruleImp`，调用其`initConfig`方法。
-
-### 补丁下载 ###
-官方网址: https://www.weaver.com.cn/cs/securityDownload.html?src=cn  
-老补丁下载方式: 根据官网中补丁发布的时间和版本，拼接成`日期_版本.zip?v=日期03`，访问url进行下载，如：  
-https://www.weaver.com.cn/cs/package/Ecology_security_20220731_v10.52.zip?v=2022073103  
-补丁解压密码
-```
-v10.39-46: Weaver@Ecology201205
-<v10.38: 未知
-old version: Weaver#2012!@#
-``` 
