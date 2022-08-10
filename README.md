@@ -88,7 +88,11 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 读取配置`ecology\WEB-INF\weaver_security_rules.xml和ecology\WEB-INF\securityRule\{Version}\`     
 初始化自定义规则`ruleImp`，调用其`initConfig`方法。        
 
-安全补丁的日志: `/ecology/WEB-INF/securitylog`     
+安全补丁的日志: `/ecology/WEB-INF/securitylog`   
+
+安全策略生效特征:
+
+(1) URL访问404，响应头部包含`errorMsg: securityIntercept`
 
 SQL注入过滤策略       
 `/ecology/WEB-INF/securityRule/Rule/weaver_security_for_sqlinjection_rules.xml`
