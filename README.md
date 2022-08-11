@@ -101,6 +101,7 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 安全策略生效特征:
 
 (1) URL访问404，响应头部包含`errorMsg: securityIntercept`
+
 (2) 访问后弹窗，提示登录或出错，或响应体中包含`<script type='text/javascript'>try{top.location.href='/login/Login.jsp?af=1&_token_=`
 
 SQL注入过滤策略       
