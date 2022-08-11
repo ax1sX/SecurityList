@@ -104,6 +104,13 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 
 (2) 访问后弹窗，提示登录或出错，或响应体中包含`<script type='text/javascript'>try{top.location.href='/login/Login.jsp?af=1&_token_=`
 
+参数名称过滤策略
+
+`ecology/WEB-INF/securityRule/Rule/weaver_security_custom_rules_for_20180411.xml`
+```
+<param-key>^(?!.*(&lt;|&gt;|&amp;|'|"|\(|\)|\r|\n|%0D%0A)).*$</param-key>
+```
+
 SQL注入过滤策略       
 `/ecology/WEB-INF/securityRule/Rule/weaver_security_for_sqlinjection_rules.xml`
 ```
