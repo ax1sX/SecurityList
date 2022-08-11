@@ -84,13 +84,13 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 
 安全策略的加载位于`SecurityMain#initFilterBean`方法，加载顺序如下
 
-加载WEB-INF/weaver_security_config.xml
-加载WEB-INF/weaver_security_rules.xml
-加载WEB-INF/securityRule/{Ecology_Version}/*.xml，并将这些文件作为参数调用ruleImp中实现了BaseRule接口的自定义规则的init函数
-从数据库表weaver_security_rules中加载（如果配置文件中fromDB=db）
-调用ruleImp中实现了BaseRule接口的自定义规则的initConfig函数
-加载WEB-INF/securityRule/Rule/*.xml
-加载WEB-INF/securityXML/*.xml
+* 加载WEB-INF/weaver_security_config.xml
+* 加载WEB-INF/weaver_security_rules.xml
+* 加载WEB-INF/securityRule/{Ecology_Version}/*.xml，并将这些文件作为参数调用ruleImp中实现了BaseRule接口的自定义规则的init函数
+* 从数据库表weaver_security_rules中加载（如果配置文件中fromDB=db）
+* 调用ruleImp中实现了BaseRule接口的自定义规则的initConfig函数
+* 加载WEB-INF/securityRule/Rule/*.xml
+* 加载WEB-INF/securityXML/*.xml
 
 安全策略的处理位于`SecurityMain#process`，处理逻辑如下（未覆盖全部路径）
 
@@ -101,6 +101,7 @@ jsp访问路径均为ecology根目录到该jsp的路径，例如jsp的绝对路�
 安全策略生效特征:
 
 (1) URL访问404，响应头部包含`errorMsg: securityIntercept`
+(2) 访问后弹窗，提示登录或出错，或响应体中包含`<script type='text/javascript'>try{top.location.href='/login/Login.jsp?af=1&_token_=`
 
 SQL注入过滤策略       
 `/ecology/WEB-INF/securityRule/Rule/weaver_security_for_sqlinjection_rules.xml`
