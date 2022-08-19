@@ -80,7 +80,7 @@ public ProcessBuilder(String... command) {
 </command>
 ```
 
-* #### 漏洞成因
+* #### xml解析过程
 xml的解析也就是反序列化过程，用fromXML()方法作为入口。重点在于标签的解析。（1）标签与类、类属性之间的转换 （2）标签属性与类属性值的转换。
 反序列化过程最核心的两步: 
 ```
@@ -99,7 +99,7 @@ public Object convertAnother(Object parent, Class type, Converter converter) {
     return this.convert(parent, type, converter);  // 进入到转换器的unmarshal方法，如TreeSetConverter.unmarshal
 }
 ```
-对于这个POC来说，TreeSetConverter.unmarshal方法中有如下一行代码，表明TreeSetConverter实际用了treeMapConverter对comparator进行解析。所以另一种poc是用`tree-map`标签替换了`sorted-set`标签
+对于这个POC来说，`TreeSetConverter.unmarshal`方法中有如下一行代码，表明TreeSetConverter实际用了treeMapConverter对comparator进行解析。所以另一种poc是用`tree-map`标签替换了`sorted-set`标签
 ```
 this.treeMapConverter.populateTreeMap(reader, context, treeMap, unmarshalledComparator);  // -> this.putCurrentEntryIntoMap(reader, context, result, sortedMap);
 ```
@@ -111,9 +111,82 @@ protected void putCurrentEntryIntoMap(HierarchicalStreamReader reader, Unmarshal
     target.put(key, key);
 }
 ```
-这里解析一下DynamicProxyConverter的unmarshal过程
+这里解析一下`DynamicProxyConverter`的`unmarshal`过程
 ```
+# (4)
+for(handlerType = null; reader.hasMoreChildren(); reader.moveUp()) {  // 循环遍历同级标签
+    String elementName = reader.getNodeName();  // 获取标签名称
+    if (elementName.equals("interface")) {
+        interfaces.add(this.mapper.realClass(reader.getValue()));  // 获取标签值, realClass找到该值对应的类或接口, "interface java.lang.Comparable"
+    } else if (elementName.equals("handler")) {
+        handlerType = this.mapper.realClass(reader.getAttribute("class")); // 获取class属性对应值， "class java.beans.EventHandler"
+    }
+}
 
+handler = (InvocationHandler)context.convertAnother(proxy, handlerType); // 对EventHandler进行反序列化，EventHandler对应的转换器是ReflectionConverter
+```
+然后进入到`AbstractReflectionConverter`的`unmarshal`过程
+```
+# (5)
+public Object unmarshal(HierarchicalStreamReader reader, UnmarshallingContext context) {
+    Object result = this.instantiateNewInstance(reader, context);  // 对handlerType对应的类进行实例化
+    result = this.doUnmarshal(result, reader, context);  // 写入类的属性值
+    return this.serializationMethodInvoker.callReadResolve(result);
+}
+```
+doUnmarshal方法简化如下
+```
+# (6)
+public Object doUnmarshal(Object result, HierarchicalStreamReader reader, UnmarshallingContext context) {
+    Class resultType = result.getClass();
+    Iterator it = reader.getAttributeNames();
+    while(it.hasNext()) { 
+        Field field = this.reflectionProvider.getFieldOrNull(resultType, "class"); //获取标签中class属性对应的类属性
+    }
+    for(implicitCollectionsForCurrentObject = null; reader.hasMoreChildren(); reader.moveUp()) {
+        reader.moveDown();
+        originalNodeName = reader.getNodeName();  // 获取子节点名称，如target标签
+        field = this.reflectionProvider.getFieldOrNull(classDefiningField, fieldName);
+        ...
+        classAttribute = HierarchicalStreams.readClassAttribute(reader, this.mapper); // 获取target标签后class属性值
+        if (classAttribute != null) {
+            type = this.mapper.realClass(classAttribute);  // 获取class属性值对应的类 "class java.lang.ProcessBuilder"
+        } else {
+            type = this.mapper.defaultImplementationOf(field.getType()); // 如果标签没有class属性值，就获取标签的数据类型对应的接口/实现类，例如command标签对应的数据类型是ArrayList
+        }
+
+        value = this.unmarshallField(context, result, type, field);  // -> convertAnother -> convert -> 进入代码段(5)，实例化target对应的ProcessBuilder,再执行doUnmarshal对子标签解析，如command
+        
+        this.reflectionProvider.writeField(result, fieldName, value, field.getDeclaringClass());
+        seenFields.add(new FastField(field.getDeclaringClass(), fieldName));
+    }
+}
+
+public Field fieldOrNull(Class cls, String name, Class definedIn) {
+    Field field = (Field)fields.get(definedIn != null ? new FieldKey(name, definedIn, -1) : name); // fields中包含该类所有的属性对应情况，形如target -> {Field@1758} "private java.lang.Object java.beans.EventHandler.target"
+    return field;
+}
+```
+doUnmarshal对子标签进行循环解析,解析Command子标签，ArrayList类型对应转换器CollectionConverter，然后进入到CollectionConverter.unmarshal。再对子标签String进行解析，String对应转换器SingleValueConverterWrapper，它的unmarshal方法实际就是对String标签中的值进行获取
+
+* #### 漏洞成因
+这个poc的入口选取的Sorted-set，对应TreeSetConverter
+```
+TreeSetConverter.unmarshal()
+  TreeMapConverter.populateTreeMap()
+    TreeMap.putAll()
+      AbstractMap.putAll()
+        TreeMap.put()
+          TreeMap.compare()
+            $Proxy0.compareTo()
+              EventHandler.invoke()
+                EventHandler.invokeInternal()
+                  ...
+                    ProcessBuilder.start()
+```
+执行到EventHandler.invokeInternal()中，有一句反射调用，此时传入的targetMethod是`ProcessBuilder.start()`，target是`ProcessBuilder`对象，newArgs是参数数组
+```
+return MethodUtil.invoke(targetMethod, target, newArgs);
 ```
 
 * #### POC2
