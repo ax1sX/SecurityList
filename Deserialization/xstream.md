@@ -417,25 +417,28 @@ AbstractReflectionConverter.unmarshal()
                                                 ProcessBuilder.start()
 ```
 
-CVE-2021-21342的SSRF还是走向`javax.activation.URLDataSource.getInputStream()`，替换了这个RCE的`com.sun.xml.internal.ws.message.JAXBAttachment.getInputStream()`。文件删除则是在`com.sun.xml.internal.ws.encoding.xml.XMLMessage$XMLMultiPart.getMessage()`这步走向了不同的方向，
+CVE-2021-21342的SSRF还是走向`javax.activation.URLDataSource.getInputStream()`，替换了这个RCE的`com.sun.xml.internal.ws.message.JAXBAttachment.getInputStream()`。文件删除则是在`com.sun.xml.internal.ws.encoding.xml.XMLMessage$XMLMultiPart.getMessage()`这步走向了不同的方向，SSRF和RCE都利用的`getInputStream()`，文件删除则是利用`getContextType()`
 ```
 mpp = new MimeMultipartParser(this.dataSource.getInputStream(), this.dataSource.getContentType(), this.feature);      
 ```
+后续调用链如下
+```
+com.sun.xml.internal.ws.encoding.MIMEPartStreamingDataHandler$StreamingDataSource.getContentType()
+  com.sun.xml.internal.org.jvnet.mimepull.MIMEPart.getContentType()
+    com.sun.xml.internal.org.jvnet.mimepull.MIMEPart.getHeaders()
+      com.sun.xml.internal.org.jvnet.mimepull.MIMEMessage.makeProgress()
+        java.io.FileInputStream.close()
+          java.nio.channels.spi.AbstractInterruptibleChannel.close()
+            sun.nio.ch.FileChannelImpl.implCloseChannel()
+              sun.plugin2.ipc.unix.DomainSocketNamedPipe.close()
+```
+另一个代码执行的payload，调用栈基本一致，但在`com.sun.xml.internal.bind.v2.runtime.reflect.Accessor$GetterSetterReflection.get()`这步后反射调用的是JdbcRowSetImpl，后续调用链如下
+```
+com.sun.rowset.JdbcRowSetImpl.getDatabaseMetaData()
+  com.sun.rowset.JdbcRowSetImpl.connect()
+    javax.naming.InitialContext.lookup()
+```
 
-
-<init>:275, File (java.io)
-close:-1, UnixDomainSocket (com.sun.deploy.net.socket)
-close:-1, DomainSocketNamedPipe (sun.plugin2.ipc.unix)
-implCloseChannel:139, FileChannelImpl (sun.nio.ch)
-close:115, AbstractInterruptibleChannel (java.nio.channels.spi)
-close:331, FileInputStream (java.io)
-makeProgress:239, MIMEMessage (com.sun.xml.internal.org.jvnet.mimepull)
-getHeaders:165, MIMEPart (com.sun.xml.internal.org.jvnet.mimepull)
-getContentType:157, MIMEPart (com.sun.xml.internal.org.jvnet.mimepull)
-getContentType:111, MIMEPartStreamingDataHandler$StreamingDataSource (com.sun.xml.internal.ws.encoding)
-getMessage:367, XMLMessage$XMLMultiPart (com.sun.xml.internal.ws.encoding.xml)
-getAttachments:465, XMLMessage$XMLMultiPart (com.sun.xml.internal.ws.encoding.xml)
-getAttachments:103, MessageWrapper (com.sun.xml.internal.ws.api.message)
 
 
 
