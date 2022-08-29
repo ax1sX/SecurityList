@@ -9,6 +9,8 @@ Struts2的架构处理请求的流程：`Dispatcher(ActionMapper+FilterDispatche
 
 Struts2还有个数据流体系： `ActionContext和ValueStack`。其中ValueStack是ActionContext的一个组成部分。 ActionContext是数据载体，负责数据存储和共享。ValueStack则负责计算，提供了表达式引擎计算的场所。
 
+Struts2漏洞的入口是`OgnlUtil.getValue()`会对表达式进行解析，攻击者可以通过OGNL特性和语法构造恶意表达式。从不同的Interceptor或者标签入手最终触发`OgnlUtil.getValue()`。
+
 ### Struts2历史漏洞
 
 | 漏洞名 | 问题定位 | POC格式 | 影响版本 |
@@ -31,7 +33,7 @@ Struts2还有个数据流体系： `ActionContext和ValueStack`。其中ValueSta
 | S2-059, S2-061 | `<s:a>,<s:url> & id="%{Name}"` | `%{('a'.(#b).(#c)}` |  2.0.0-2.5.20,S2-061 to 2.5.25 |
 
 ### S2-001
-漏洞demo如下，点击提交后，调用对应的Action.execute()方法进行判断用户名密码是否匹配。那在Action处理之前，Struts2要先读取表单内容，ParametersInterceptor.doIntercept()将表单中的值放入StackValue中。然后对标签进行处理。doStartTag和doEndTag。
+漏洞demo如下
 ```
 <s:form action="login">
     <s:textfield name="username" label="username" />
@@ -39,7 +41,7 @@ Struts2还有个数据流体系： `ActionContext和ValueStack`。其中ValueSta
     <s:submit></s:submit>
 </s:form>
 ```
-在标签处理doEngTag时，会对表单值进行计算
+表单提交后，调用对应的Action.execute()方法进行处理。在Action处理之前，Struts2先读取表单内容，ParametersInterceptor.doIntercept()将表单中的值放入StackValue中。然后对标签进行处理。doStartTag和doEndTag。在标签处理doEngTag时，会对表单值进行计算
 ```java
 // UIBean
 public void evaluateParams() {
@@ -57,6 +59,7 @@ public void evaluateParams() {
     }
 }
 ```
+name的值如password传入到这个方法中，在`altSyntax`功能开启下会被拼接成`%{password}`进行处理。  
 代码中的`this.findString()`实际调用的是`this.findValue()`。最终都会调用`TextParseUtil.translateVariables('%', expr, this.stack);`。代码如下
 ```java
 public static Object translateVariables(char open, String expression, ValueStack stack, Class asType, TextParseUtil.ParsedValueEvaluator evaluator) {
@@ -74,11 +77,11 @@ public static Object translateVariables(char open, String expression, ValueStack
     }
 }
 ```
-`<s:textfield name="password" label="password" />`标签在`evaluateParams()`时其name值被拼接成`%{password}`,进入到`translateVariables()`方法。  
 其中`stack.findValue()`即`OgnlValueStack.findValue()`，最终会调用`OgnlUtil.getValue()`，对OGNL进行解析。  
-第一轮执行到`stack.findValue()`，取出password的实际值，如`%{1+1}`。那么在第二轮递归时，可以满足取`%{`的逻辑，然后再次进入到`stack.findValue()`，这次就是对`%{}`括号内的OGNL进行计算了。
+第一轮执行到`stack.findValue()`，取出password的表单传入值，如`%{1+1}`。那么在第二轮递归时，可以满足取`%{`的逻辑，然后再次进入到`stack.findValue()`，这次就是对`%{}`括号内的OGNL进行计算了。
 
 
+### S2-003
 
 
 
