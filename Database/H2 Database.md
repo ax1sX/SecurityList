@@ -1,6 +1,30 @@
 # H2 Database
 
-H2是一个用Java开发的嵌入式数据库
+H2是一个用Java开发的嵌入式数据库。H2的运行模式包括：内嵌模式（本地连接，使用JDBC）、服务器模式(远程连接，从其他进程或其他机器访问，在TCP层使用JDBC或ODBC)、混合模式（设置AUTO_SERVER=TRUE，同时支持本地或远程）。各运行模式的Url如下
+```
+
+本地连接——本地文件连接
+jdbc:h2:~/test
+jdbc:h2:file:/data/sample
+jdbc:h2:file:C:/data/sample(windows)
+
+本地连接——内存数据库
+jdbc:h2:mem:（私有格式，只有一个到内存数据库的连接）
+jdbc:h2:mem:<databaseName>（这样到内存数据库有多个连接，但是默认最后一个连接关闭时会关闭内存数据库，如果要保持数据库连接添加DB_CLOSE_DELAY=-1）
+
+服务器模式
+jdbc:h2:tcp://<server>[:<port>]/[<path>]<databaseName>
+jdbc:h2:ssl://<server>[:<port>]/<databaseName>
+jdbc:h2:tcp://localhost/~/test
+jdbc:h2:tcp://localhost/mem:test 
+jdbc:h2:ssl://localhost:8085/~/sample;
+```
+
+数据库连接时可以进行一些设置，例如连接时执行sql
+```
+jdbc:h2:<url>;INIT=RUNSCRIPT FROM '~/create.sql'  // 执行一个sql文件
+jdbc:h2:file:~/sample;INIT=RUNSCRIPT FROM '~/create.sql'\;RUNSCRIPT FROM '~/populate.sql'  // 执行多个sql文件
+```
 
 官方网站：http://www.h2database.com/html/main.html
 
@@ -12,7 +36,6 @@ H2是一个用Java开发的嵌入式数据库
 |CVE-2021-23463|SQL|< 2.0.202 |
 |CVE-2021-42392|RCE|<= 2.0.204|
 |CVE-2022-23221|RCE|< 2.1.210|
-|未知|未授权访问|未知|
 
 ## CVE-2022-23221
 参考链接： https://packetstormsecurity.com/files/165676/H2-Database-Console-Remote-Code-Execution.html
