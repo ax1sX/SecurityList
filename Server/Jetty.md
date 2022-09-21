@@ -472,5 +472,11 @@ case '/':
     
 第三个payload和第二个payloady也很类似，只是在`case '\u0000'`，进入了`dots==2`的分支。然后将前部分payload处理为`/a/`。由于dots值并没有发生变化，又进入了`case '/'`分支，将`/a/`处理为了`/`。这样最终路径就将`/a/b/`全部去掉了，只剩`/WEB-INF/web.xml`。这个payload也是很巧妙
 
+## CVE-2021-28169
+Ref： https://bugs.eclipse.org/bugs/show_bug.cgi?id=573389
+  
 ## CVE-2021-28165
 Ref： https://security.snyk.io/vuln/SNYK-JAVA-ORGECLIPSEJETTY-1090340
+  
+
+  
