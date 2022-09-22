@@ -9,7 +9,7 @@
 |漏洞编号|漏洞类型|影响版本|
 |:----:|:----:|:----:|
 |CVE-2017-12615|写文件|7.0.0 to 7.0.79|
-|CVE-2020-1938|文件包含|< 9.0.31, 8.5.51 or 7.0.100|
+|CVE-2020-1938|文件读取/文件包含|< 9.0.31, 8.5.51 or 7.0.100|
 |CVE-2019-0232|RCE|9.0.0.M1 to 9.0.17, 8.5.0 to 8.5.39 and 7.0.0 to 7.0.93|
 |无|后台弱密码+GetShell|7+|
 
@@ -196,6 +196,98 @@ Tomcat对于协议的解析包括：HTTP/1.1、AJP、HTTP/2。这个漏洞的是
     <version>7.0.79</version>
 </dependency>
 ```
+
+这个漏洞的触发点也是DefaultServlet，CVE-2017-12615执行的doPut而这个漏洞则执行的doGet
+```
+protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+    this.serveResource(request, response, true);
+}
+```
+serveResource的具体实现如下
+```
+protected void serveResource(HttpServletRequest request, HttpServletResponse response, boolean content) throws IOException, ServletException {
+    boolean serveContent = content;
+    String path = this.getRelativePath(request, true); // 获取文件路径
+
+    if (path.length() == 0) { this.doDirectoryRedirect(request, response);} 
+    else {
+        CacheEntry cacheEntry = this.resources.lookupCache(path); // path和resource根目录拼接，得到资源实体
+        boolean isError = DispatcherType.ERROR == request.getDispatcherType();
+        String contentType;
+        if (!cacheEntry.exists) {...
+        } else if (cacheEntry.context == null && (path.endsWith("/") || path.endsWith("\\"))) { ...
+        } else {
+            contentType = cacheEntry.attributes.getMimeType();
+            ...
+            ServletOutputStream ostream = null;
+            PrintWriter writer = null;
+            if (serveContent) {
+                try {
+                    ostream = response.getOutputStream(); // 获取输出流
+                } ...
+            }
+            ServletResponse r = response;
+            long contentWritten;
+            for(contentWritten = 0L; r instanceof ServletResponseWrapper; r = ((ServletResponseWrapper)r).getResponse()) {}
+            if (r instanceof ResponseFacade) {
+                contentWritten = ((ResponseFacade)r).getContentWritten();
+            }
+
+            if (cacheEntry.context == null && !isError && (ranges != null && !ranges.isEmpty() || request.getHeader("Range") != null) && ranges != FULL) { ...} 
+            else {
+                if (contentType != null) {
+                    response.setContentType(contentType);
+                }
+
+                if (cacheEntry.resource != null && contentLength >= 0L && (!serveContent || ostream != null)) {
+                    if (contentWritten == 0L) {
+                        if (contentLength < 2147483647L) {
+                            response.setContentLength((int)contentLength);
+                        }...
+                    }
+                }
+
+                InputStream renderResult = null;
+                if (serveContent) {
+                    ...
+                    if (ostream != null) {
+                        if (!this.checkSendfile(request, response, cacheEntry, contentLength, (DefaultServlet.Range)null)) {
+                            this.copy(cacheEntry, renderResult, ostream); // 将文件实体的内容写入到输出流
+                        }
+                    } else {
+                        this.copy(cacheEntry, renderResult, writer);
+                    }
+     ...
+}
+```
+getRelativePath会得到路径`servletPath+pathInfo`。如果`request.getAttribute("javax.servlet.include.request_uri") `值不为空，路径的值都是从属性`javax.servlet.include.path_info`和`javax.servlet.include.servlet_path`中获取的。
+<details>
+    <summary>getRelativePath</summary>
+    <pre><code>
+protected String getRelativePath(HttpServletRequest request, boolean allowEmptyPath) {
+    String servletPath;
+    String pathInfo;
+    if (request.getAttribute("javax.servlet.include.request_uri") != null) {
+        pathInfo = (String)request.getAttribute("javax.servlet.include.path_info");
+        servletPath = (String)request.getAttribute("javax.servlet.include.servlet_path");
+    } else {
+        pathInfo = request.getPathInfo();
+        servletPath = request.getServletPath();
+    }
+    StringBuilder result = new StringBuilder();
+    if (servletPath.length() > 0) {
+        result.append(servletPath);
+    }
+    if (pathInfo != null) {
+        result.append(pathInfo);
+    }
+    if (result.length() == 0 && !allowEmptyPath) {
+        result.append('/');
+    }
+    return result.toString();
+}
+    </code></pre>
+</details>
 
 ## 弱密码
 查看用户权限配置文件`conf/tomcat-users.xml`，示例如下，可以根据官网进行配置： https://tomcat.apache.org/tomcat-8.5-doc/manager-howto.html
