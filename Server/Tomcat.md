@@ -2,6 +2,8 @@
 
 版本下载： http://archive.apache.org/dist/tomcat/
 
+官方漏洞声明： https://tomcat.apache.org/security-7.html
+
 历史漏洞
 
 |漏洞编号|漏洞类型|影响版本|
