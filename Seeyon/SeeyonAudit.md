@@ -349,7 +349,7 @@ Spring框架下的Controller
 
 关系可见下图
 
-[Filter Layer](#root/62M2cv0YyGbv/npMntJ8dTO3U/xUnwaUgOcsc5/HSWO1W2CXHYe/ObI740ncOBds)
+![Filter Layer](filter.png)
 
 从图中可看出`CTPSecurityFilter`覆盖的内容是最多的，并且_**大部分**_验证都在这里进行。
 
