@@ -772,7 +772,7 @@ result = {HashSet@36330}  size = 10
 
 ### Clazz文件的反编译
 
-如果遇到了clazz或无法反编译的class文件，请参考 [致远A8 v8.1 clazz文件的反编译](#root/62M2cv0YyGbv/LpyXkzc0gwGg/5hYDYWpJrc9r/XoUaKohU2lQ0/ZtTZvA6anWbs)
+如果遇到了clazz或无法反编译的class文件，请参考 [致远A8 v8.1 clazz文件的反编译](clazzDecompile.md)
 
 Refernece
 ---------
