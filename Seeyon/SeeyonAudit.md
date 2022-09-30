@@ -5,11 +5,11 @@
 
 从
 
-`\\10.128.154.26\share\01-组件源码安装包\Z-致远OA\V6.1sp2`
+`\share`
 
 获取压缩包文件和破解补丁
 
-`\\10.128.154.26\share\01-组件源码安装包\Z-致远OA\V6.1\破解补丁\jwycbjnoyees.jar`
+`jwycbjnoyees.jar`
 
 解压后进入
 
