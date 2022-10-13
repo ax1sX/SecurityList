@@ -13,14 +13,6 @@ twnt.jar是license相关包，破解的twnt.jar放到lib目录下替换，并在
 
 假如想要替换jar包中某个类的内容。新建一个IDEA工程，选取TongWeb对应的JDK版本，例如1.7，在src目录下，根据想要替换的类的package路径创建一个类，然后复制源类中的内容并进行修改，然后点击IDEA的build，生成out文件夹下对应的.class文件，复制出来。用7zip打开jar包，用生成的.class替换掉原文件即可。
 
-**解决远程调试断点无法命中**
-
-TongWeb的applications文件夹中的class文件在远程调试时存在断点无法命中的问题。解决这个问题就需要打jar包。例如根据class的package全限定名`package com.tongweb.admin.jmx.remote.server.servlet`。将目录切到com的所在目录`TongWeb6.1/applications/sysweb/WEB-INF/classes/`下，利用如下命令进行打包
-```
-jar cvf testsysweb.jar *
-```
-然后将该jar包添加到lib中，这样将断点打到该jar包中的对应类中，即可命中。
-
 **相关用户名和密码**
 ```
 # console
