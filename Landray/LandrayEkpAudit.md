@@ -14,12 +14,107 @@
 *   （11）访问`http://ip:8080/ekp/sys/profile/index.jsp`进入蓝凌后台，然后选择`运维管理-管理员工具箱-系统初始化`，进行系统初始化操作
 *   （12）如果想要调试蓝凌EKP的代码，可以在服务器启动时采用命令`.\catalina.bat jpda start`启动服务器，这样默认的监听端口为8000
 
-## 路由分析
-*   （1）路由特点。所有jsp或class的访问路径为该文件到ekp目录之前的相对路径，例如`/ekp/sys/common/dataxml.jsp`
-*   （2）配置文件。位于`/ekp/WEB-INF/KmssConfig`文件夹下，根据jsp或class对应的文件夹路径，可在KmssConfig下查找该路径下的各类配置内容。`spring-mvc.xml`定义了类、访问路径和对应jsp的关系；`spring.xml`中定义了其他的类。所以路径要从`spring-mvc.xml`中查找（有些版本蓝凌用的struts.xml）
-*   （3）可访问的class入口类命名为`xxController`、`xxAction`，都可以在每个目录的`actions`文件夹下查找，例如`/ekp/WEB-INF/classes/com/landray/kmss/common/actions`，入口类对应的访问路径按（2）中的方式查找
-*   （4）请求执行流程。先经过Tomcat的ApplicationFilterChain（包含蓝凌配置的各类Filter、SpringSecurity），然后Spring的DispatcherServlet将请求分发到某个xxActionController，最终执行到其子类的execute方法（如果子类没有execute方法就逐层寻找父类的execute），然后通过dispatchMethod()方法分发到子类的某个具体方法
-*   （5）SpringSecurity配置。`/ekp/WEB-INF/KmssConfig/sys`文件夹下有两个关于SpringSecurity的配置——Authentication（认证）和Authorization（授权）文件夹
+## 架构分析
+
+### ssh架构
+蓝凌采用SSH架构（Struts2+Spring+Hibernate）。层次结构为`View层 -> Controller层 -> Service层 -> Dao层 -> Model层`。这些在蓝凌的源码功能模块文件夹结构也有体现
+
+文件夹结构尤其要注意（1）源码位于`/ekp/WEB-INF/classes/com/landray/kmss` （2）配置文件位于`/ekp/WEB-INF/KmssConfig`文件夹下
+
+<details>
+    <summary>蓝凌文件夹结构</summary>
+    <pre>
+    <code>
+ekp
+ |- component (功能模块，包含jsp文件)
+ |- dbcenter
+ ...
+ |- sys
+ ...
+ |- WEB-INF
+     |- classes ( * 源码  com.landray.kmss)
+	|- 某功能子模块
+	    |- actions
+	    |- dao
+	    |- forms
+	    |- model
+	    |- plugin
+ 	    |- service
+             ...
+	    |- util
+     |- dic (数据字典 .dic)
+     |- KmssConfig ( * 各功能模块的配置，包含xml文件)
+     |- lib (库)
+     |- patch (补丁)
+     |- templates (模板，.ftl)
+     |- 各类.tld文件
+     |- web.xml
+     |- web-normal.xml
+     |- web-safe.xml
+    </code>
+    </pre>
+</details>
+
+
+**请求执行流程**
+
+发起请求时，会先经过Tomcat的ApplicationFilterChain链条进行过滤（包含Spring Security相关的Filter、编码相关Filter等），访问xx.jsp，然后Spring的DispatcherServlet根据spring-mvc.xml将请求转到对应的Action类进行处理，处理过程中调用Service层的方法。方法中用到的数据实体都位于Dao层。Service层和Dao层的定义都在spring.xml文件中。数据值则是通过Hibernate，完成对数据库的curd（增删改查）操作。
+
+**Hibernate配置**
+
+`/ekp/WEB-INF/web.xml`中可以看到配置了`OpenSessionInViewFilter`，该类将Hibernate Session绑定到请求线程中便于Spring管理，也就是表明架构采用了Hibernate。Hibernate是一种ORM（Objcet Relative Mapping-对象关系映射）的框架。对象的映射关系文件名为`xx.hbm.xml`，和类对象放在同一个文件夹下。
+
+以KmsKcubeTmplCfg类为例，查看它的映射关系
+```java
+public class KmsKcubeTmplCfg extends BaseModel {
+    private static ModelToFormPropertyMap toFormPropertyMap;
+    private String fdKey;
+    private Integer fdType;
+    ...
+}
+```
+KmsKcubeTmplCfg.hbm.xml内容如下
+```xml
+<hibernate-mapping>
+    <class 
+        name="com.landray.kmss.kms.kcube.model.KmsKcubeTmplCfg"  <! --类名-->
+        table="kms_kcube_tmpl_cfg"> <! --表名-->
+        <id               <!--主键映射，属性名为fdId，列名为fd_id-->
+            name="fdId"  
+            column="fd_id" 
+            length="36"/>
+        <property 
+            name="fdKey"  <!--非主键映射，属性名为fdKey，列名为fd_key-->
+            column="fd_key" 
+            update="true" 
+            insert="true" 
+            length="200"
+            not-null="true" />
+        <property 
+            name="fdType" 
+            column="fd_type" 
+            update="true" 
+            insert="true"
+            not-null="true" />
+        ...
+    </class>
+</hibernate-mapping>
+```
+
+### 路由分析
+*   （1）jsp路由为jsp所在位置到ekp目录之前的相对路径，例如`/ekp/sys/common/dataxml.jsp`
+*   （2）Controller访问路由，Controller命名为`xxController`、`xxAction`，可以在每个功能目录的`actions`文件夹下查找。然后在KmssConfig文件夹该功能对应的配置文件spring-mvc.xml（有些版本蓝凌用的struts.xml）中查找类与jsp的对应关系，和类的访问路径。
+
+
+### 安全管理
+SpringSecurity配置。`/ekp/WEB-INF/KmssConfig/sys`文件夹下有两个关于SpringSecurity的配置——Authentication（认证）和Authorization（授权）文件夹
+```
+    <filter>
+        <!-- 'springSecurityFilterChain' is a bean ID that declared in sys\authentication\spring.xml  -->  
+        <filter-name>springSecurityFilterChain</filter-name>  
+        <filter-class>com.landray.kmss.web.filter.SpringSecurityFilterToBeanProxy</filter-class>  
+    </filter> 
+```
 
 ## 已知漏洞
  - [1.custom.jsp文件读取漏洞](#custom文件读取)
