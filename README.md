@@ -12,6 +12,8 @@
 [代码审计](https://github.com/ax1sX/SecurityList/blob/main/Seeyon/SeeyonAudit.md)、[补丁问题](https://github.com/ax1sX/SecurityList/blob/main/Seeyon/clazzDecompile.md)
 * [用友NC]
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/Yongyou/yongyou_NC_Audit.md)
+* [蓝凌Landray]
+[代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/Landray/LandrayEkpAudit.md)
 
 ### （2）数据库 ###
 * [mssql](https://github.com/ax1sX/SecurityList/blob/main/SQL/mssql.md)
