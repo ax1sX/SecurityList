@@ -177,7 +177,7 @@ filterInvocationInterceptor中也定义了一些匿名路径
  - [5.XMLdecoder反序列化漏洞](#xmldecoder反序列化)
  - [6.debug.jsp写文件漏洞](#debug_jsp写文件)
  - [7.kmImeetingRes.do sql注入漏洞](#kmimeetingres_sql注入)
-
+ - [8./api和/data未授权访问漏洞]()
 
 |漏洞名称|访问路径|漏洞定位|
 |:---:|:---:|:---:|
@@ -188,7 +188,7 @@ filterInvocationInterceptor中也定义了一些匿名路径
 |XMLdecoder反序列化漏洞|`/sys/search/sys_search_main/sysSearchMain.do?method=editParam`|`/util/ObjectXML.class`|
 |debug.jsp写文件漏洞|`/ekp/sys/common/debug.jsp`|直接将接收参数写入到了code.jsp|
 |kmImeetingRes.do sql注入漏洞|`/ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do`|——|
-
+|/api和/data未授权访问漏洞|`/ekp/data/sys-common/dataxml.gif`|——|
 
 ### custom文件读取
 custom.jsp文件内容如下
