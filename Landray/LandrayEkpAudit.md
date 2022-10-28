@@ -178,7 +178,7 @@ filterInvocationInterceptor中也定义了一些匿名路径
  - [6.debug.jsp写文件漏洞](#debug_jsp写文件)
  - [7.kmImeetingRes.do sql注入漏洞](#kmimeetingres_sql注入)
  - [8.sysPortalPortlet.do Porlet文件写入漏洞](#sysportalportletdo-porlet文件写入漏洞)
- - [9.debug.jsp文件写入漏洞](#debug.jsp文件写入漏洞)
+ - [9.debug.jsp文件写入漏洞](#debugjsp文件写入漏洞)
 
 |漏洞名称|访问路径|漏洞定位|
 |:---:|:---:|:---:|
