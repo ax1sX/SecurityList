@@ -352,6 +352,19 @@ Connection: close
 ```
 数据包script的内容可以将恶意代码进行unicode转码，防止字符被转译。
 
+此外搜索getDataList，还发现了以下路由
+```
+/sys/lbpmdocking/resource/jsp/datajson.jsp
+```
+同时以`SysFormulaSimulate`为线索了，发现了一个接口`IRuleProvider`它的实现类有两个
+* DockingRuleProvider
+* FormulaRuleProvider
+
+也与Beanshell相关，由此还找到
+```
+/ekp/sys/lbpmservice/mobile/opthanlder.do
+```
+等路由，但需要管理员权限。
 
 
 ### jsp未授权访问
