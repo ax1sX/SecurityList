@@ -363,11 +363,6 @@ Connection: close
 * DockingRuleProvider
 * FormulaRuleProvider
 
-也与Beanshell相关，由此还找到
-```
-/ekp/sys/lbpmservice/mobile/opthanlder.do
-```
-等路由，但需要管理员权限。
 
 
 ### jsp未授权访问
