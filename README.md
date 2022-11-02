@@ -14,6 +14,10 @@
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/Yongyou/yongyou_NC_Audit.md)
 * [蓝凌Landray]
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/Landray/LandrayEkpAudit.md)
+* [泛微E-Office]
+[代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/WeaverE-Office/%E6%B3%9B%E5%BE%AEE-Office.md)
+* [通达OA]
+[代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/TongdaOA/%E9%80%9A%E8%BE%BEOA.md)
 
 ### （2）数据库 ###
 * [mssql](https://github.com/ax1sX/SecurityList/blob/main/SQL/mssql.md)
