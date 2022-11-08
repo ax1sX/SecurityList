@@ -1,55 +1,74 @@
-# SecurityList
+# 通达OA
 
-## 通达OA ##
+## 环境配置
 
-### (1) 漏洞指纹 ###
+### 下载安装
 
-Office Anywhere 20xx版网络智能办公系统
-/images/tongda.ico
+v12版：https://cdndown.tongda2000.com/oa/2022/TDOA12.0.exe
 
-### (2) 解密与调试 ###  
+v11版（11.2-11.10）：TDOA+版本名.exe。比如下载11.9本，则名为`TDOA11.9.exe`，对应的下载链接为：https://cdndown.tongda2000.com/oa/2019/TDOA11.10.exe
 
-环境是一体安装包exe文件，按照提示正常安装完毕后，来到webroot目录下，该目录为web根目录。
+2013-2017版：旧版本，MYOA+年份.exe。比如下载2015版本，则名为`/oa/2015/MYOA2015.exe`，对应的下载链接为：https://cdndown.tongda2000.com/oa/2017/MYOA2017.exe
 
-使用php Zend 5.x进行加密该目录的文件，使用SeayDzend工具或者百度php zend解密在线网站进行解密即可。
+环境安装为一体安装包，直接双击点exe，设定完安装目录安装（例如C:\TongDa）即可自动安装。源码在web根目录（webroot）。代码同样是使用php Zend 5.x进行加密的，所以可以使用SeayDzend工具或者百度php zend解密在线网站进行解密。
 
-由于zend解密不完全，不能直接用解密的webroot目录替换原来的webroot目录。只能通过替换单个页面，自行设定断点，dump出来变量的内容。
+版本查询
+```
+inc/expired.php
+inc/version.inc.php
+inc/reg_trial.php
+inc/reg_trial_submit.php
+```
 
-### (3) 关键数据 ###
+### 账户密码 
+```
+# 后台账户
+admin 密码默认为空 (不会强制修改密码；密码限制长度8-20位，必须同时包含字母和数字)
 
-- 后台账户：admin用户默认密码为空，首次登陆后不会强制修改用户密码，密码限制：8-20位，必须同时包含字母和数字；用户密码校验通过login_check函数，主要接口传入密码会进行rsa加密或base64编码，但也会明文传输（设置encode_type=0可规避）。
+# 扩展用户
+officeTask 默认密码为空
 
-* 超级密码：用于菜单分配权限（系统管理->组织机构设置->角色与权限管理）；v11版默认为空， 旧版2013-2017版超级密码默认为t.KNnZ13xCrRI；v11版数据对应存入数据库SYS_PARA表格SUPER_PASS和SECURE_SUPER_PASS：$7zL15rX4mEbdfZMo9YrDf0
+# 服务账户
+查看\bin\Service.ini文件
 
-* 扩展用户: officeTask 默认密码为空  
+# 默认超级密码
+v11版: 空
+2013-2017版: t.KNnZ13xCrRI
+```
 
-* 各服务默认账户信息查看\bin\Service.ini文件
+## 架构分析
 
-* 环境信息查看: 
+通达OA采用了yii2框架，并加入自主开发的系统。安装目录如下，官方文档中声明了`/webroot/general/`是主要功能模块，子文件夹appbuilder就是用的yii框架。但其他功能没有在yii框架范围内。所以路由分为（1）文件到根目录的相对路径 （2）yii框架对应的`/general/appbuilder/web/模块名/控制器名/方法名`
+```
+｜—attach （存放附件）
+｜—bin （PHP、Zeng等配置）
+｜—data5 （mysql数据库文件）
+｜—logs （日志文件）
+｜—MyAdmin （mysql管理工具）
+｜—mysql5 （mysql主程序文件）
+｜—nginx （Nginx Web应用服务）
+｜—tmp （临时文件）
+｜—webroot （Web根目录）
+    ｜—general 主要模块
+        ｜—appbuilder yii框架
+        ｜—system 系统功能模块
+    ｜—inc 系统通用程序及函数目录
+    ｜—ispirit OA精灵页面
+    ｜—mobile OA移动界面
+    ｜—module 系统组件
+    ｜—portal 门户界面
+```
 
-  `inc/expired.php` 版本、试用期
-  `inc/version.inc.php` 版本查看
-  `inc/reg_trial.php` `inc/reg_trial_submit.php`
+查看`/general/appbuilder/config/web.php`，即yii的路由配置。可以看到（1）开启了美化路由，并且设置不显示index.php，但是没设置美化规则
+```php
+"urlManager"   => array(
+	"enablePrettyUrl" => true,
+	"showScriptName"  => false,
+	"rules"           => array()
+	),
+```
 
-* 环境下载：
 
-v12版：
-
-https://cdndown.tongda2000.com/oa/2022/TDOA12.0.exe
-
-v11版（11.2-11.10）：该系列是什么版本就将exe文件名改成具体的版本。比如下载11.9本，则修改为`TDOA11.9.exe`
-
-https://cdndown.tongda2000.com/oa/2019/TDOA11.10.exe
-
-2013-2017版：旧版本，要下载哪个年份的版本就将年份就修改为对应的年份。比如下载2015版本，则修改为`/oa/2015/MYOA2015.exe`
-
-https://cdndown.tongda2000.com/oa/2017/MYOA2017.exe
-
-### (4) 路由特点 ###
-
-整体架构既使用了yii2框架，又自主开发了系统架构，写了不少功能模块的页面（总体代码文件达上千个）。路由访问也根据情况分为一下两个方面
-
-- Yii2框架
 
 1. `/general/appbuilder/web/模块名/控制器名/方法名`
 
@@ -63,7 +82,7 @@ https://cdndown.tongda2000.com/oa/2017/MYOA2017.exe
    			),
    ```
    
-1. 前台、后台模块筛选：
+2. 前台、后台模块筛选：
 
    将$b_dir_priv直接设置为true部分可以免登录直接访问，在`general/appbuilder/config/params.php`中默认的有skip_module不用进行校验：
 
@@ -73,12 +92,9 @@ https://cdndown.tongda2000.com/oa/2017/MYOA2017.exe
 
 ​		`"check_module" => array("appcenter", "report", "appdesign")`
 
-- 普通GET访问的路由方式
 
-文件存放路径是什么，访问路径就是什么。因此筛选前后台文件，就是查看是否引入了权限校验文件对功能页面是否进行了限制
-
-查找不包含以下文件即可：
-
+访问路由时，查找不包含权限校验文件的（如下），优先进行代码审计
+```
 pda/auth.php
 pda/pad/auth.php
 task/auth.php
@@ -88,6 +104,7 @@ general/data_center/utils/task_auth.php
 general/reportshop/utils/task_auth.php
 interface/auth.php
 ispirit/im/auth.php
+```
 
 ### (5) 安全策略 ###
 
