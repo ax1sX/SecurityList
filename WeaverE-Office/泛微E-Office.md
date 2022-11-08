@@ -45,30 +45,78 @@ v9更新需要手动将补丁包的webroot目录覆盖原webroot目录，然后�
 ### 安装目录
 E-Office采用php 7.4.30 + apache 2.4.41 + mysql 5.5.53 + redis 3.0.504 + node.js 13.14.0。由于是一体化安装，相关配置都在安装目录下，安装目录内容如下
 ```
-apache -> conf/httpd.conf，http默认端口8010
-attachment -> 附件上传地址
-bin
-logs
-mysql -> my.ini，端口3310，默认账户root/weoffice10
-nodejs
-php —> php.ini
-redis -> redis.windows.conf，redis端口6379，默认只能本地访问`bind 127.0.0.1`，默认密码：eoffice10redis
-temp
-www -> 源码，\eoffice10\version.json中包含版本
-config.ini
-uninst.exe
+｜—apache
+   ｜—conf/httpd.conf（http默认端口8010）
+｜—attachment（附件上传地址）
+｜—bin
+｜—logs
+｜—mysql
+   ｜—my.ini（端口3310，默认账户root/weoffice10）
+｜—nodejs
+｜—php
+   ｜—php.ini
+｜—redis
+    ｜—redis.windows.conf（redis端口6379，默认只能本地访问`bind 127.0.0.1`，默认密码：eoffice10redis）
+｜—temp
+｜—www（源码，\eoffice10\version.json中包含版本）
+｜—config.ini
+｜—uninst.exe
+```
+
+E-Office整体架构采用laravel lumen框架（laravel的轻量版），查看`/www/eoffice10/server`下的目录结构（类似laravel，但有精简）
+```
+app: 程序核心源码
+bootstrap: 包含框架启动文件app.php
+config: 配置文件
+database: 数据库文件
+ext: 扩展
+nodejs: js文件
+public: 包含index.php,进入应用程序的请求入口
+resources: 视图和未编译的资源文件
+routes: 路由定义，包含web.php（有的程序包含api.php、console.php等）
+storage: 包含由Balde框架生成的基于目录的模板、文件和缓存
+vendor: 包含composer依赖
+```
+其中app下的目录结构，核心如下
+```
+Console: 包含应用自定义的Artisan命令
+EofficeApp: Eoffice功能模块
+EofficeCache: Eoffice缓存
+Helpers: 方法定义
+Http: 包含控制器、中间件以及表单请求等。几乎所有通过Web进入应用的请求处理在这进行
+Listeners: 监听器处理触发事件
+Providers: 服务提供者，在容器中绑定服务、注册事件等。
+Utils: 工具类，加解密、编码等
+```
+Laravel框架的相关审计，值得关注的点如下
+```
+网站路由（routes/web.php）
+控制器（app/Http/Controllers）
+中间件（app/Http/Middleware）
+Model（app/Models）
+网站配置（config）
+第三方扩展（composer.json）
 ```
 
 ### 路由特点
 
-整体架构既使用了laravel框架，路由情况也是参照于此。`routes/web.php`是配置路由的文件，从中了解到固定路由前缀`/eoffice10/server/public/api/根据模块查询模块映射的路由`。其中有2个路由组不用通过权限和api_token校验,
+参考laravel框架，路由配置位于`routes/web.php`，请求入口位于`/eoffice10/server/public/index.php`。由于web.php中定义了路由前缀为`api`。所以E-Office的路由访问为`/eoffice10/server/public/api/`加上访问的模块，模块可以在web.php中查询对应的路由，如果没有查到，在每个模块文件夹的内部还设置了routes.php。这部分参见web.php的第一个路由组
+```php
+$router->group(["namespace"  => "App\\EofficeApp",
+                "middleware" => "decodeParams|authCheck|ModulePermissionsCheck|menuPower|openApiMiddleware|syncWorkWeChat|verifyCsrfReferer",
+                "prefix"     => "/api"], function ($router) {
+    register_routes($router, $moduleDir, $modules);
+}
+```
+路由组中配置了中间件。所谓中间件是一种过滤HTTP请求的机制，进行身份验证、CSRF保护、执行任务等，这些都位于`app/Http/Middleware`。类似于Java中的Filter过滤器。
 
-1. $noTokenApi
+第二个路由组，定义为`$noTokenApi`，在访问时不会校验api_token，点击展开`$noTokenApi`变量
 
-   属于第二个路由组，访问的时候不会校验api_token
-   
-   ```php
-   $noTokenApi = ["Auth"       => [["auth/login", "login", "post"], ["auth/refresh", "refresh", "get"],
+<details>
+   <summary>$noTokenApi</summary>
+   <pre>
+   <code>
+$noTokenApi = ["Auth"       => [["auth/login", "login", "post"], ["auth/refresh", "refresh", "get"],
                                    ["auth/login/quick", "quickLogin", "post"],
                                    ["auth/login/theme", "getLoginThemeAttribute"],
                                    ["auth/sms/verifycode/{phoneNumber}", "getSmsVerifyCode"],
@@ -160,90 +208,27 @@ uninst.exe
                              ["home/scene/seeder/progress", "sceneSeederProgress", "get"], ["home/url/data", "getUrlData"],
                              ["home/version/check", "checkSystemVersion"], ["home/system/update", "updateSystem"],
                              ["home/empty-scene/seeder", "emptySceneSeeder", "get"]]];
-   
-   if (is_array($modules)) {
-       $currentRoutes = isset($noTokenApi[$modules[0]]) ? isset($noTokenApi[$modules[0]][$modules[1]]) ? $noTokenApi[$modules[0]][$modules[1]] : [] : [];
-   } else {
-       $currentRoutes = isset($noTokenApi[$modules]) ? $noTokenApi[$modules] : [];
-   }
-   if (!empty($currentRoutes)) {
-       $router->group(["namespace" => "App\\EofficeApp",
-                       "middleware" => "decodeParams|ModuleEmpowerCheckNoToken",
-                       "prefix"    => "/api"], function ($router) {
-           register_routes($router, $moduleDir, $modules, $currentRoutes);
-       });
-   }
-   ```
+   </code>
+   </pre>
+</details>
 
-2. 其他路由组和模块文件夹内的routes.php
 
-每个模块文件夹内部还允许设置`routes.php`文件配置路由，该部分的路由属于路由组1，这部分的路由组基本会校验权限和api token：
 
-```php
-$router->group(["namespace"  => "App\\EofficeApp",
-                "middleware" => "decodeParams|
-                ModuleEmpowerCheckNoToken|
-                authCheck|
-                ModulePermissionsCheck|
-                menuPower|
-                openApiMiddleware|
-                syncWorkWeChat|
-                verifyCsrfReferer",
-                "prefix"     => "/api"], function ($router) {
-    register_routes($router, $moduleDir, $modules);
-});
-```
+**api token（令牌）获取**
 
- Web/routes.php的其他路由组访问模式直接查看代码中的设置就可以了。
+需要api token验证的路由，在请求内附上token才能正常请求。传递方式有两种：api_token参数和header头Authorization字段`Authorization:Bearer 令牌`。令牌需要用户登录后生成，可以通过chrome浏览器f12-应用-本地存储空间搜索`loggedUsersIMToken`密钥字段获取。令牌传输的相关错误和异常码，可以在api文档中查看。	
 
-3. api token（令牌）获取
-
-需要api token验证的路由，在请求内附上token才能正常请求。传递方式有两种：api_token参数和header头Authorization字段
-
-e.g. header头传输的固定格式`Authorization:Bearer 令牌`
-
-令牌需要用户登录后进行生成，可以通过chrome浏览器f12-应用-本地存储空间搜索`loggedUsersIMToken`密钥字段获取。令牌传输的相关错误和异常码，可以在api文档中查看（第三节倒数第二个链接）。	
 
 ## 历史漏洞
 
-```
-SQL 注入
-
-（1）【<=9.0_141103】【CNVD-2022-43246】未授权SQL注入
-POST /general/crm/linkman/query/detail.php HTTP/1.1
-linkman_id=-1+UNION+ALL+SELECT+NULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CCONCAT%28%7B0%7D%2C%7B1%7D%2C%7B0%7D%29%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL%2CNULL--+-
-
-（2）【<=9.5_20220113】/E-mobile/App/System/UserSelect/index.php 后台登录布尔逻辑SQL注入
-POST /E-mobile/App/System/UserSelect/index.php?m=getUserLists HTTP/1.1
-privId=0&deptId=1+or+1=1#&sessionkey=99lk5c0ln03vm4kbd1ofet3u41
-
-
-文件操作
-
-(1)【<=9.5】/webroot/general/index/UploadFile.php 文件上传
-CNVD-2021-49104
-https://blog.csdn.net/qq_38850916/article/details/121696515
-
-（2）【8-10】iWebOffice控件上传getshell
-【<=8】【未授权】/iWebOffice/OfficeServer.php和/iWebOffice/OfficeServer2.php
-REF：http://wy.zone.ci/bug_detail.php?wybug_id=wooyun-2015-0125638
-【<10】【未授权】eoffice10/server/app/EofficeApp/IWebOffice/Services/IWebOfficeService.php中$m0ption=SAVEFILE和SAVEPDF分支
-Patch：http://v10.e-office.cn/10safepack/%E6%B3%9B%E5%BE%AEe-officev10.0_20210909%E5%AE%89%E5%85%A8%E8%A1%A5%E4%B8%81.zip
-
-（3）【<=v9.5_20220113】【CNVD-2022-43247】未授权包含
-补丁对比，点绕过：
-Patch：http://v10.e-office.cn/eoffice9update/20220525/webroot.zip
-POC：
-POST /gotoeoffice.php HTTP/1.1
-USER_LANG=../test.php.....................................................................................................................................................................................................................................................
-
-（4）【<9.5_20220113】【CNVD-2021-103144】登录绕过+文件上传getshell
-http://www.dcrblog.cn/archives/e-office9getshell
-
-信息泄漏
-
-（1）【<=9.5】/UserSelect/main.php 信息泄漏
-直接访问/UserSelect/，成功会显示系统用户有哪些
-v8版的编号：wooyun-2015-0128007，和poc：/UserSelect/main.php
-```
+|漏洞名称|访问路径|影响版本|
+|:---:|:---:|:---:|
+|detail.php 未授权sql注入漏洞|`/general/crm/linkman/query/detail.php`|<=9.0_141103|
+|index.php sql注入漏洞|`/E-mobile/App/System/UserSelect/index.php`|<=9.5_20220113|
+|UploadFile.php 文件上传漏洞|`/webroot/general/index/UploadFile.php`|<=9.5|
+|OfficeServer2.php 未授权文件上传漏洞|`/iWebOffice/OfficeServer.php和/iWebOffice/OfficeServer2.php`|<=8|
+|IWebOfficeService.php 未授权文件上传漏洞|`eoffice10/server/app/EofficeApp/IWebOffice/Services/IWebOfficeService.php`|<10|
+|gotoeoffice.php 未授权文件包含漏洞|`/gotoeoffice.php`|<=v9.5_20220113|
+|登录绕过+文件上传漏洞|`/general/hrms/manage/hrms.php`|<9.5_20220113|
+|main.php 信息泄漏漏洞|`/UserSelect/main.php`|<=9.5|
 
