@@ -256,7 +256,7 @@ disable_functions = exec,shell_exec,system,passthru,proc_open,show_source,phpinf
 # 2015 未限制eval
 disable_functions = exec,shell_exec,system,passthru,proc_open,show_source,phpinfo
 ```
-绕过方式除了在11.10中用assert、2015中用eval函数这种黑名单绕过方式，还可以 (1) Windows系统组件COM上传图片马 (2) mysql udf提权。Windows系统组件COM上传图片马的是哟哦那个条件：a.
+绕过方式除了在11.10中用assert、2015中用eval函数这种黑名单绕过方式，还可以 (1) Windows系统组件COM上传图片马 (2) mysql udf提权。Windows系统组件COM上传图片马的条件：a.
 `com.allow_dcom = true`（默认不开启） b. 开启`php_com_dotnet.dll` c. php>5.4。利用代码如下，但在11.9版本已经不支持这种方式。mysql udf提权的条件是：a. mysql可远程登录；b.CREATE权限、FILE权限（root用户默认拥有所有权限）；c.  `secure_file_priv`项设置为空（不是null）:
 
 **Windows系统组件COM上传图片马**
