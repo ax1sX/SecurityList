@@ -276,7 +276,6 @@ disable_functions = exec,shell_exec,system,passthru,proc_open,show_source,phpinf
 |漏洞名称|访问路径|影响版本|
 |:---:|:---:|:---:|
 |report_bi.func.php sql联合注入漏洞|`/general/bi_design/appcenter/report_bi.func.php`|<=11.6|
-|report_bi.func.php sql联合注入漏洞|`/general/bi_design/appcenter/report_bi.func.php`|<=11.6|
 |/recv/register/insert sql盲注漏洞|`/general/document/index.php/recv/register/insert`|<=11.6|
 |swfupload_new.php 未授权sql盲注漏洞|`/general/file_folder/swfupload_new.php`|<=11.5|
 |get_index_data.php sql盲注漏洞|`/general/email/inbox/get_index_data.php`|<=11.7|
