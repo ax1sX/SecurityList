@@ -106,9 +106,9 @@ public interface Service {
     void process(HttpServletRequest var1, HttpServletResponse var2, String var3, String var4) throws Exception;
 }
 ```
-总结来说，就是通过传入的cp参数，找到某个Service对应的actionOP返回值与传入的cp值相同的，然后调用该Service的process方法。process后续的执行流程，可参考 - [任意文件覆盖漏洞](#任意文件覆盖漏洞)。一般是遍历该Service对应的几个Action(Action都实现自`RequestCMDReceiver`接口，该接口包含`getCMD()`方法和`actionCMD()`方法)，如果某个Action的`getCMD()`方法返回值和传入的cmd参数一致，就调用该Action的`actionCMD()`方法对请求进行处理。整体调用流程如下：
+总结来说，就是通过传入的`op`参数，找到某个Service对应的actionOP返回值与传入的`op`值相同的，然后调用该Service的process方法。process后续的执行流程，可参考 - [任意文件覆盖漏洞](#任意文件覆盖漏洞)。一般是遍历该Service对应的几个Action(Action都实现自`RequestCMDReceiver`接口，该接口包含`getCMD()`方法和`actionCMD()`方法)，如果某个Action的`getCMD()`方法返回值和传入的cmd参数一致，就调用该Action的`actionCMD()`方法对请求进行处理。整体调用流程如下：
 ```
-'cp' <=> Service.actionOP -> Service.process -> 'cmd' <=> Action.getCMD -> Action.actionCMD 
+'op' <=> Service.actionOP -> Service.process -> 'cmd' <=> Action.getCMD -> Action.actionCMD 
 ```
 
 ## 历史漏洞
