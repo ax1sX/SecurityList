@@ -10,7 +10,8 @@ FineReport（帆软报表）的安装较为简单，直接双击`windows_x64_Fin
 
 ## 架构分析
 ### 路由分析
-`/WebReport/WEB-INF/web.xml`是唯一的路由配置文件，并且只定义了一个servlet，内容如下
+#### v8/v9
+v8和v9较为类似，目录`/FineReport_9.0/WebReport/WEB-INF/web.xml`是唯一的路由配置文件，并且只定义了一个servlet，内容如下
 ```xml
   <servlet>
     <servlet-name>ReportServer</servlet-name>
@@ -109,6 +110,15 @@ public interface Service {
 总结来说，就是通过传入的`op`参数，找到某个Service对应的actionOP返回值与传入的`op`值相同的，然后调用该Service的process方法。process后续的执行流程，可参考 - [任意文件覆盖漏洞](#任意文件覆盖漏洞)。一般是遍历该Service对应的几个Action(Action都实现自`RequestCMDReceiver`接口，该接口包含`getCMD()`方法和`actionCMD()`方法)，如果某个Action的`getCMD()`方法返回值和传入的cmd参数一致，就调用该Action的`actionCMD()`方法对请求进行处理。整体调用流程如下：
 ```
 'op' <=> Service.actionOP -> Service.process -> 'cmd' <=> Action.getCMD -> Action.actionCMD 
+```
+
+#### v10
+v10的目录结构相比v8/v9有了变化，web.xml不再位于`/FineReport_9/WebReport/WEB-INF/web.xml`，而是`/FineReport_10/server/conf/web.xml`。并且默认入口的Servlet不再是ReportServlet，而是走tomcat的DefaultServlet。并且路由都是由类中的注解方式来设置。
+```
+	<servlet>
+		<servlet-name>default</servlet-name>
+		<servlet-class>org.apache.catalina.servlets.DefaultServlet</servlet-class>
+	</servlet>
 ```
 
 ## 历史漏洞
