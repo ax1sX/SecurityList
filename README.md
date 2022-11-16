@@ -18,6 +18,8 @@
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/WeaverE-Office/%E6%B3%9B%E5%BE%AEE-Office.md)
 * [通达OA]
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/TongdaOA/%E9%80%9A%E8%BE%BEOA.md)
+* [帆软报表]
+[代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/FineReport/FineReportAudit.md)
 
 ### （2）数据库 ###
 * [mssql](https://github.com/ax1sX/SecurityList/blob/main/SQL/mssql.md)
@@ -27,6 +29,7 @@
 * [Apache Solr](https://github.com/ax1sX/SecurityList/blob/main/Database/Apache%20Solr.md)
 * [ElasticSearch](https://github.com/ax1sX/SecurityList/blob/main/Database/ElasticSearch.md)
 * [InfluxDB](https://github.com/ax1sX/SecurityList/blob/main/Database/InfluxDB.md)
+* [PrimetonPAS](https://github.com/ax1sX/SecurityList/blob/main/Primeton/PrimetonPASAudit.md)
 
 ### （3）Server ###
 * [Jetty](https://github.com/ax1sX/SecurityList/blob/main/Server/Jetty.md)
