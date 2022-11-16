@@ -29,16 +29,16 @@
 * [Apache Solr](https://github.com/ax1sX/SecurityList/blob/main/Database/Apache%20Solr.md)
 * [ElasticSearch](https://github.com/ax1sX/SecurityList/blob/main/Database/ElasticSearch.md)
 * [InfluxDB](https://github.com/ax1sX/SecurityList/blob/main/Database/InfluxDB.md)
-* [PrimetonPAS](https://github.com/ax1sX/SecurityList/blob/main/Primeton/PrimetonPASAudit.md)
+
 
 ### （3）Server ###
 * [Jetty](https://github.com/ax1sX/SecurityList/blob/main/Server/Jetty.md)
 * [Nginx](https://github.com/ax1sX/SecurityList/blob/main/Server/Nginx.md)
 * [Tomcat](https://github.com/ax1sX/SecurityList/blob/main/Server/Tomcat.md)
-* [TongWeb](https://github.com/ax1sX/SecurityList/blob/main/Server/TongWeb.md)
 * [WebLogic](https://github.com/ax1sX/SecurityList/blob/main/Server/Weblogic.md)
 * [JBoss](https://github.com/ax1sX/SecurityList/blob/main/Server/Jboss.md)
-
+* [TongWeb](https://github.com/ax1sX/SecurityList/blob/main/Server/TongWeb.md)
+* [PrimetonPAS](https://github.com/ax1sX/SecurityList/blob/main/Primeton/PrimetonPASAudit.md)
 
 ## 2. 漏洞分析 ##
 
