@@ -1,14 +1,26 @@
 ## 环境搭建
-Windows Server虚拟机，安装SQL Server，并创建一个数据库，如nc65。
+Windows Server虚拟机，安装SQL Server（推荐2008），并创建一个数据库，如nc65。
 
-解压用友NC的安装包，从NC6.5文件夹中找到yongyou_nc文件夹。找到文件夹中的setup.bat开始安装过程，NCHome目录路径中不能包含中文、空格或特殊字符。Windows环境变量中的JDK路径也不能包含空格等。
+解压用友NC的安装包，从NC6.5文件夹中找到yongyou_nc文件夹。找到文件夹中的setup.bat开始安装过程，需要注意
 
-用友UAP配置工具：`C:\yonyou\home\bin\sysConfig.bat`，双击SysConfig.bat启动。服务器选项可以配置JDK版本（需要与windows环境变量中的一致），还可以配置调试参数（点击读取应用服务器，在虚拟机参数后加入如下内容，再点击保存）
+* NCHome目录路径中不能包含中文、空格或特殊字符。
+* Windows环境变量中的JDK路径也不能包含空格等。
+
+安装后，打开用友UAP配置工具：`C:\yonyou\home\bin\sysConfig.bat`，双击SysConfig.bat启动。
+
+服务器选项可以配置JDK版本（需要与windows环境变量中的一致），还可以配置调试参数（点击读取应用服务器，在虚拟机参数后加入如下内容，再点击保存）
+
 ```
 Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5555
 ```
 
-UAP配置工具的数据源选项则是配置数据库，选取上述创建的nc65。
+并同时配置Web服务器，点击保存。
+
+![yongyou](https://user-images.githubusercontent.com/62204882/202337674-b501e085-5c15-4ca7-87ae-74252cc19fc8.jpg)
+
+UAP配置工具的数据源选项则是配置数据库，选取上述创建的nc65即可。数据源名称和OID可随意设置
+
+![yongyou1](https://user-images.githubusercontent.com/62204882/202337958-146c3bed-b762-4bad-968c-d4cc3b36c13d.jpg)
 
 配置完成后，在home目录下找到startServer.bat，双击启动服务，服务启动成功后，访问127.0.0.1，端口为环境搭建时配置的端口。
 
