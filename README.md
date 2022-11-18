@@ -20,6 +20,8 @@
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/TongdaOA/%E9%80%9A%E8%BE%BEOA.md)
 * [帆软报表]
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/FineReport/FineReportAudit.md)
+* [拓尔思TRS 内容协作平台WCM]
+[代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/TRS/WCM_Audit.md)
 
 ### （2）数据库 ###
 * [mssql](https://github.com/ax1sX/SecurityList/blob/main/SQL/mssql.md)
@@ -40,13 +42,12 @@
 * [TongWeb](https://github.com/ax1sX/SecurityList/blob/main/Server/TongWeb.md)
 * [PrimetonPAS](https://github.com/ax1sX/SecurityList/blob/main/Primeton/PrimetonPASAudit.md)
 
-## 2. 漏洞分析 ##
+## 2. 漏洞类型 ##
 
 ### （1）反序列化 ###
 * [常见利用类](https://github.com/ax1sX/SecurityList/blob/main/Deserialization/%E5%B8%B8%E8%A7%81%E5%88%A9%E7%94%A8%E7%B1%BB.md)
 
 * [XStream](https://github.com/ax1sX/SecurityList/blob/main/Deserialization/xstream.md)
-
 
 
 
