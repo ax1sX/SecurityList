@@ -134,6 +134,8 @@ private void doAction(HttpServletRequest request, HttpServletResponse response) 
 
 访问路径如`http://172.16.165.146:8089/servlet/~uapss/com.yonyou.ante.servlet.FileReceiveServlet`，就调用的uapss模块下的FileReceiveServlet类。
 
+这些模块的位于安装目录下的`home/modules`目录中。
+
 ## 已知漏洞
 ```
 # 反序列化漏洞
