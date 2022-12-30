@@ -22,6 +22,8 @@
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/FineReport/FineReportAudit.md)
 * [拓尔思TRS 内容协作平台WCM]
 [代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/TRS/WCM_Audit.md)
+* [Nexus Repository Manager]
+[代码审计与环境搭建](https://github.com/ax1sX/SecurityList/blob/main/Java_OA/Nexus%20Repository%20Manager%20Audit.md)
 
 ### （2）数据库 ###
 * [mssql](https://github.com/ax1sX/SecurityList/blob/main/SQL/mssql.md)
