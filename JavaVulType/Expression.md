@@ -277,6 +277,13 @@ ${"freemarker.template.utility.Execute"?new()("id")}
 ```
 关于更复杂的poc构造，有一篇不错的文章：https://ackcent.com/in-depth-freemarker-template-injection/
 
+Freemarker SSTI的一个偏向于黑盒测试的实际漏洞CVE-2021-25770：https://www.synacktiv.com/en/publications/exploiting-cve-2021-25770-a-server-side-template-injection-in-youtrack.html
+
+Freemarker SSTI的另外两个漏洞：CVE-2022-22954（VMware workspace one access）和CVE-2020-13445（Liferay Portal）可以看看。
+
+
+
+
 ## velocity
 Velocity，其模板是用VTL（Velocity Template Language）编写的，将内容动态地插入到网页中，官方网址：https://velocity.apache.org/engine/2.3/user-guide.html
 
@@ -347,6 +354,8 @@ ${new groovy.lang.GroovyClassLoader().parseClass("@groovy.transform.ASTTest(valu
 
 关于Groovy的POC可以参考：https://security.humanativaspa.it/groovy-template-engine-exploitation-notes-from-a-real-case-scenario/
 
+关于Groovy POC的研究可以参考Orange研究Jenkins时的思路：https://devco.re/blog/2019/02/19/hacking-Jenkins-part2-abusing-meta-programming-for-unauthenticated-RCE/
+
 ## jinjava
 JinJava的语法是基于django的，呈现jinja模板。所以样式如`{{}}`。官网：https://github.com/HubSpot/jinjava
 
@@ -379,7 +388,10 @@ set标签用于定义变量，POC参考文章：https://research.securitum.com/s
 
 有个项目整理了很多表达式注入相关的payload，但是用于实战还要根据上述思路进行更改，搭配着看吧：https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Server%20Side%20Template%20Injection/README.md#expression-language-el---basic-injection
 
-另外，关于模板注入，可以看这篇： https://portswigger.net/research/server-side-template-injection
+另外，关于模板注入，基础用法可以看这篇： https://portswigger.net/research/server-side-template-injection
+
+模板注入的沙盒绕过看这篇，文中提出了很多思路，针对Freemarker、Velocity、JinJava也给出了很多的绕过POC：https://media.defcon.org/DEF%20CON%2028/DEF%20CON%20Safe%20Mode%20presentations/DEF%20CON%20Safe%20Mode%20-%20Alvaro%20Mun%CC%83oz%20and%20Oleksandr%20Mirosh%20-%20Room%20For%20Escape%20Scribbling%20Outside%20The%20Lines%20Of%20Template%20Security.pdf
+
 
 
 
