@@ -43,12 +43,12 @@
 
 ### （4）常见组件
 
-* [Struts2]
-[漏洞环境下载](https://github.com/ax1sX/SecurityList/tree/main/Struts2/demo)、[OGNL POC](Struts2/POC%E8%A7%A3%E6%9E%90.md)、[漏洞分析](Struts2/Struts2%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.md)
-* [XStream]
-[审计特点与POC分析](Java_OA/xstream.md)
-* [Nexus Repository Manager]
-[代码审计与环境搭建](Java_OA/Nexus%20Repository%20Manager%20Audit.md)
+* Struts2
+  * [漏洞环境下载](https://github.com/ax1sX/SecurityList/tree/main/Struts2/demo)、[OGNL POC](Struts2/POC%E8%A7%A3%E6%9E%90.md)、[漏洞分析](Struts2/Struts2%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.md)
+* XStream
+  * [审计特点与POC分析](Java_OA/xstream.md)
+* Nexus Repository Manager
+  * [代码审计与环境搭建](Java_OA/Nexus%20Repository%20Manager%20Audit.md)
 
 ## 2. 漏洞利用
 
