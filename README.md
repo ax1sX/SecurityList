@@ -14,6 +14,7 @@
 * [通达OA] [代码审计与环境搭建](Other_OA/%E9%80%9A%E8%BE%BEOA.md)
 * [泛微E-Office] [代码审计与环境搭建](Other_OA/%E6%B3%9B%E5%BE%AEE-Office.md)
 * [Smartbi] [代码审计与环境搭建](Java_OA/Smartbi_Audit.md)
+* [RuoYi若依] [代码审计](Java_OA/RuoYi.md)
 
 ### （2）数据库
 
