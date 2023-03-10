@@ -99,7 +99,7 @@ func main() {
 localhost?q={{%20define%20"T"%20}}<script>alert(1)</script>{{%20end%20}}{{template%20"T"}}
 ```
 成功弹窗，当然这里需要假设**模板可控**。
-![](Pasted%20image%2020230307105828.png)
+![](../images/Pasted%20image%2020230307105828.png)
 
 ### 代码执行
 >这部分内容是最为鸡肋的，现实中应该很难碰到。
@@ -161,7 +161,7 @@ func main() {
 </ul>
 ```
 结果如下。
-![[Pasted image 20230310210247.png]]
+![](../images/Pasted%20image%2020230310210247.png)
 如果此方法是一个危险的方法，例如可执行命令或者读取文件，那就会导致危险行为的产生。对代码进行修改：
 ```go
 func main() {
@@ -180,7 +180,7 @@ func (t *Todo) TodoFunc(content string) string {
 	return string(out)
 }
 ```
-![[Pasted image 20230310211445.png]]
+![](../images/Pasted%20image%2020230310211445.png)
 如果模板可控，那么可以使用`{{ .TodoFunc "cmd" }}`来调用所需方法。
 
 ## 参考
