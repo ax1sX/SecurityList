@@ -7,7 +7,7 @@
 4. 修改系统时间至 2021-04-26 之前（根据自身 Landray 的授权截止时间更改）
 5. 复制 ekp 文件夹中 `web-safe.xml` 的内容至 `web.xml`。（直接覆盖）
 6. 切到目录的 `\linux64\tomcat\bin` ，命令行执行 `.\catalina.bat run` 启动服务器
-7. 服务成功启动后访问http://ip:8080/ekp/admin.do ，页面的密码为 `Password1`（这个密码位于`/ekp/WEB-INF/KmssConfig/admin.properties`）
+7. 服务成功启动后访问 http://ip:8080/ekp/admin.do ，页面的密码为 `Password1`（这个密码位于`/ekp/WEB-INF/KmssConfig/admin.properties`）
 8. 根据前面配置的数据库，更改数据库连接 url（将服务器地址 landray.com.cn 换成本机的，如 127.0.0.1），测试数据库连接。另外，可修改附件存放地址，默认为 `C:\landray\kmss\resource`。修改完页面配置后，点击保存，会要求重启服务器
 9. 重启服务器之前，复制 ekp 文件夹中的 `web-normal.xml` 至 `web.xml`（此处需要注意，更改了第五步中的 web.xml ，否则启动失败）。然后再执行 `.\catalina.bat run` 启动服务器
 10. 重启成功后，访问 `http://ip:8080/ekp/sys/profile/index.jsp`，登陆的默认用户名密码为：`admin 1`，然后系统会要求更改 `1` 这个过于简单的密码
