@@ -12,20 +12,15 @@
 * [帆软报表] [代码审计与环境搭建](Java_OA/FineReportAudit.md)
 * [拓尔思TRS 内容协作平台WCM] [代码审计与环境搭建](Java_OA/WCM_Audit.md)
 * [通达OA] [代码审计与环境搭建](Other_OA/%E9%80%9A%E8%BE%BEOA.md)
-* [泛微E-Office] [代码审计与环境搭建](Other_OA/%E6%B3%9B%E5%BE%AEE-Office.md)
 * [Smartbi] [代码审计与环境搭建](Java_OA/Smartbi_Audit.md)
 * [RuoYi若依] [代码审计](Java_OA/RuoYi.md)
 
-### （2）数据库
+### （2）常见组件
 
-* [mssql](Database/mssql.md)
-* [mysql](Database/mysql.md)
-* [H2 Database](Database/H2%20Database.md)
-* [CouchDB](Database/CouchDB.md)
-* [Apache Solr](Database/Apache%20Solr.md)
-* [ElasticSearch](Database/ElasticSearch.md)
-* [InfluxDB](Database/InfluxDB.md)
-* [Apache Druid](Database/Apache%20Druid.md)
+* [ThinkPHP] [代码审计](Other_OA/ThinkPHP.md)
+* [Struts2] [漏洞环境下载](https://github.com/ax1sX/SecurityList/tree/main/Struts2/demo)、[OGNL POC](Struts2/POC%E8%A7%A3%E6%9E%90.md)、[漏洞分析](Struts2/Struts2%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.md)
+* [XStream] [审计特点与POC分析](Java_OA/xstream.md)
+* [Nexus Repository Manager] [代码审计与环境搭建](Java_OA/Nexus%20Repository%20Manager%20Audit.md)
 
 ### （3）Server
 
@@ -37,12 +32,16 @@
 * [TongWeb](Server/TongWeb.md)
 * [PrimetonPAS](Server/PrimetonPASAudit.md)
 
-### （4）常见组件
+### （4）数据库
 
-* [ThinkPHP] [代码审计](Other_OA/ThinkPHP.md)
-* [Struts2] [漏洞环境下载](https://github.com/ax1sX/SecurityList/tree/main/Struts2/demo)、[OGNL POC](Struts2/POC%E8%A7%A3%E6%9E%90.md)、[漏洞分析](Struts2/Struts2%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90.md)
-* [XStream] [审计特点与POC分析](Java_OA/xstream.md)
-* [Nexus Repository Manager] [代码审计与环境搭建](Java_OA/Nexus%20Repository%20Manager%20Audit.md)
+* [mssql](Database/mssql.md)
+* [mysql](Database/mysql.md)
+* [H2 Database](Database/H2%20Database.md)
+* [CouchDB](Database/CouchDB.md)
+* [Apache Solr](Database/Apache%20Solr.md)
+* [ElasticSearch](Database/ElasticSearch.md)
+* [InfluxDB](Database/InfluxDB.md)
+* [Apache Druid](Database/Apache%20Druid.md)
 
 ## 2. 漏洞利用
 
