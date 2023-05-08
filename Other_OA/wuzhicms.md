@@ -2,6 +2,12 @@
 
 北京五指互联科技有限公司（简称：五指互联）开发的网站内容管理系统，下载地址：https://github.com/wuzhicms/wuzhicms
 
+下载后解压，将`caches`和`coreframe`文件夹拷贝到`www`文件夹下，然后将`www`文件夹放到php集成环境中，重命名`www`为`wuzhicms`
+
+安装界面：http://127.0.0.1:8089/wuzhicms/install
+
+网站后台登陆界面：http://127.0.0.1:8089/wuzhicms/index.php?m=core&f=index&v=login&_su=wuzhicms
+
 
 
 ## 架构分析
