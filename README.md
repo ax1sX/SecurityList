@@ -15,6 +15,7 @@
 * [Smartbi] [代码审计与环境搭建](Java_OA/Smartbi_Audit.md)
 * [RuoYi若依] [代码审计](Java_OA/RuoYi.md)
 * [金山终端安全系统] [代码审计](Other_OA/%E9%87%91%E5%B1%B1%E7%BB%88%E7%AB%AF%E5%AE%89%E5%85%A8%E7%B3%BB%E7%BB%9F.md)
+* [慧点OA] [代码审计](Java_OA/huidianOA.md)
 
 ### （2）常见组件
 
