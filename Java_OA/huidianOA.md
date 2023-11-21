@@ -9,35 +9,35 @@ js_name="www/lib/ionic/js/ionic.bundle.min.js"
 整体框架结构也很简单（不知道是不是因为代码不完整）。`docviewer-webapp`文件夹下包含`WEB-INF`和`META-INF`两个文件夹。
 ```
 WEB-INF
-	|-classes
-			|-com
-				|- grcspsmartdot
-					|- grcsp
-						|- doc
-							|- bootstrap
-								|- DocViewerServiceBootStrap
-								|- ServletIndexListener
-							|- controller
-								|- ConvertHtmlController
-								|- ConvertToOneController
-								|- DocViewerController
-								|- HealthCheckController
-								|- SystemConfigurationController
-								|- WordOperationController
-			|-spring
-      		|- docviewer-context.xml
-      		|- docviewer-servlet.xml
-	|-jsp
-			｜- healthCheck.jsp
-			｜- mview.jsp
-			｜- parameter.jsp
-			｜- view.jsp
-	|-lib
-	|-static
-	|-web.xml <!-- servlet由spring来处理-->
-	|-web.xml_2_5
-	|-web.xml_3_0
-	|-weblogic.xml
+    |-classes
+        |-com
+            |- grcspsmartdot
+                |- grcsp
+                    |- doc
+                        |- bootstrap
+                            |- DocViewerServiceBootStrap
+                            |- ServletIndexListener
+                        |- controller
+                            |- ConvertHtmlController
+                            |- ConvertToOneController
+                            |- DocViewerController
+                            |- HealthCheckController
+                            |- SystemConfigurationController
+                            |- WordOperationController
+        |-spring
+            |- docviewer-context.xml
+            |- docviewer-servlet.xml
+    |-jsp
+        ｜- healthCheck.jsp
+        ｜- mview.jsp
+        ｜- parameter.jsp
+        ｜- view.jsp
+    |-lib
+    |-static
+    |-web.xml <!-- servlet由spring来处理-->
+    |-web.xml_2_5
+    |-web.xml_3_0
+    |-weblogic.xml
 ```
 
 web.xml中的配置很简单，只声明servlet都由spring来处理。spring配置引入的是`WEB-INF\classes\spring`文件夹下的文件。跟进一下`docviewer-servlet.xml`
