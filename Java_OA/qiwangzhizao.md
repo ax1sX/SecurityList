@@ -202,7 +202,7 @@ Pay/WechatPayResponse.action
 ### comboxstore sql注入漏洞
 ```
 POST /mainFunctions/comboxstore.action HTTP/1.1
-Host: 221.224.155.22:8093
+Host: ip:port
 Pragma: no-cache
 Cache-Control: no-cache
 Upgrade-Insecure-Requests: 1
