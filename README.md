@@ -18,6 +18,7 @@
 * [慧点OA] [代码审计](Java_OA/huidianOA.md)
 * [浙大恩特客户资源管理系统] [代码审计](Java_OA/entCRM.md)
 * [企望制造ERP] [代码审计](Java_OA/qiwangzhizao.md)
+* [畅捷通] [代码审计](Other_OA/Chanjet.md)
 
 ### （2）常见组件
 
