@@ -1,7 +1,7 @@
 ## 环境问题
 亿赛通主要分为两个大版本，一个是老一代的亿赛通，一个是新一代的亿赛通。此篇代码审计以老一代亿赛通为目标。
 
-[老一代亿赛通](https://github.com/ax1sX/SecurityList/blob/main/images/CDGServer3_old.png)
+![老一代亿赛通](https://github.com/ax1sX/SecurityList/blob/main/images/CDGServer3_old.png)
 
 
 在Windows下注册的服务名为：CobraDG
