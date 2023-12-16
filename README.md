@@ -19,6 +19,7 @@
 * [浙大恩特客户资源管理系统] [代码审计](Java_OA/entCRM.md)
 * [企望制造ERP] [代码审计](Java_OA/qiwangzhizao.md)
 * [畅捷通] [代码审计](Other_OA/Chanjet.md)
+* [亿赛通] [代码审计](Java_OA/CDGServer3_old.md)
 
 ### （2）常见组件
 
