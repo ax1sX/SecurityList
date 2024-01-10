@@ -20,6 +20,7 @@
 * [企望制造ERP] [代码审计](Java_OA/qiwangzhizao.md)
 * [畅捷通] [代码审计](Other_OA/Chanjet.md)
 * [亿赛通] [代码审计](Java_OA/CDGServer3_old.md)
+* [飞企互联FE企业运营管理平台] [代码审计](Java_OA/FEOAv6.51.md)
 
 ### （2）常见组件
 
