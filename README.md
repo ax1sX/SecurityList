@@ -29,6 +29,7 @@
 * [XStream] [审计特点与POC分析](Java_OA/xstream.md)
 * [Nexus Repository Manager] [代码审计与环境搭建](Java_OA/Nexus%20Repository%20Manager%20Audit.md)
 * [wuzhicms] [代码审计](Other_OA/wuzhicms.md)
+* [Nacos] [代码审计](Java_OA/NacosAudit.md)
 
 ### （3）Server
 
