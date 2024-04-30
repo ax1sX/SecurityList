@@ -159,4 +159,4 @@ class Admin extends AuthController //直接继承，后面直接写功能代码�
         ......
 ```
 
-除了判断是否有权限访问模块，如果认为自我实现代码进行鉴权麻烦，还可以使用框架官方推荐的第三方库或者官方库。官方在thinkphp 3.x代码库中存在过一个auth代码：https://github.com/top-think/thinkphp/blob/master/ThinkPHP/Library/Think/Auth.class.php，不过后来没有了。后来基于tp5开发了类似的auth类：[5ini99/think-auth](https://github.com/5ini99/think-auth)，详细介绍在thinkphp社区也有介绍：[基于thinkphp5的auth权限认证扩展](https://www.thinkphp.cn/extend/873.html)。还有一种不同于auth的方式，`thinkphp-auth`（github很多同名库）是基于RBAC建立的一种给thinkphp鉴权的系统。RABC鉴权是一种基于角色的访问控制机制，它通过将权限分配给角色，再将角色分配给用户来管理系统资源的访问权限。目前官方没有写过鉴权库，github上能找到的都是第三方。
+除了判断是否有权限访问模块，如果认为自我实现代码进行鉴权麻烦，还可以使用框架官方推荐的第三方库或者官方库。官方在thinkphp 3.x代码库中存在过一个[auth代码](https://github.com/top-think/thinkphp/blob/master/ThinkPHP/Library/Think/Auth.class.php)，不过后来没有了。后来基于tp5开发了类似的auth类：[5ini99/think-auth](https://github.com/5ini99/think-auth)。在thinkphp社区也有介绍：[基于thinkphp5的auth权限认证扩展](https://www.thinkphp.cn/extend/873.html)。还有一种不同于auth的方式，`thinkphp-auth`（github很多同名库）是基于RBAC建立的一种给thinkphp鉴权的系统。RABC鉴权是一种基于角色的访问控制机制，它通过将权限分配给角色，再将角色分配给用户来管理系统资源的访问权限。目前官方没有写过鉴权库，github上能找到的都是第三方。
