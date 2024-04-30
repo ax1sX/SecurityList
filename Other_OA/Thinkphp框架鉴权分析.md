@@ -142,7 +142,7 @@ class AuthController extends Controller
       ......
 ```
 
-1. `admin`模块需要鉴权的controller直接继承`AuthController`即可：
+2. `admin`模块需要鉴权的controller直接继承`AuthController`即可：
 
 ```php
 <?php
