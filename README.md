@@ -52,6 +52,7 @@
 
 # 2. 路由分析
 * [Struts2框架路由分析](Java_OA/Route_Struts2.md)
+* [ThinkPHP框架路由与鉴权分析](Other_OA/Thinkphp框架鉴权分析.md)
 
 # 3. 漏洞利用
 
