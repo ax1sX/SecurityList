@@ -18,6 +18,7 @@
 * [畅捷通] [代码审计](Other_OA/Chanjet.md)
 * [亿赛通] [代码审计](Java_OA/CDGServer3_old.md)
 * [飞企互联FE企业运营管理平台] [代码审计](Java_OA/FEOAv6.51.md)
+* [契约锁] [代码审计、补丁破解、License破解](https://blog.csdn.net/baidu_25299117/article/details/139990814?spm=1001.2014.3001.5502)
 
 ### 常见组件
 
