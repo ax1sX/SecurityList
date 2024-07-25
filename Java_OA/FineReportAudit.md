@@ -135,9 +135,45 @@ v10的目录结构相比v8/v9有了变化，web.xml不再位于`/FineReport_9/We
 
 #### v11
 
-v11 版本的 web.xml 文件位于 `FineReport_11.0/server/conf/web.xml`，与 v10 相比没有变化，路由都通过注解进行配置。v11 的 Web 端基于 SpringBoot 框架编写，同时 v11 将第三方依赖都放在包 `com.fr.third.*` 中。
+v11 版本的 web.xml 文件位于 `FineReport_11.0/server/conf/web.xml`，与 v10 相比没有变化，路由都通过注解进行配置。v11 的 Web 端基于 Spring 框架编写，同时 v11 将第三方依赖都放在包 `com.fr.third.*` 中。
 
-可通过注解 `@RequestMapping` 快速锁定相关路由
+由于 `web.xml` 文件中并未透露路由信息，那么 context 的初始化工作必然是被放在了代码中处理，通过查看 `com.fr.third.springframework.web.WebApplicationInitializer` 的实现类锁定 context 的初始化位于 `com.fr.startup.MockServletStartUp#initContext`
+
+```java
+private static void initContext(ServletContext var0) {
+    AnnotationConfigWebApplicationContext var1 = FineWebApplicationStartup.getInstance().getSpringContext();
+    if (var1 == null) {
+        var1 = new AnnotationConfigWebApplicationContext();
+    }
+
+    var1.register(new Class[]{DecisionHandlerAdapter.class});
+    ServletRegistration.Dynamic var2 = var0.addServlet("deployment", new DispatcherServlet(var1));
+    if (var2 != null) {
+        var2.addMapping(new String[]{ServerConfig.getInstance().getServletMapping()});
+        var2.setLoadOnStartup(1);
+    }
+
+    var1.register(new Class[]{DeploymentConfiguration.class});
+    SateVariableManager.remove("fineContextPath");
+    SateVariableManager.put("fineContextPath", var0.getContextPath());
+    SateVariableManager.remove("fineServletURL");
+    SateVariableManager.put("fineServletURL", var0.getContextPath() + "/" + ServerConfig.getInstance().getServletName());
+    var1.scan(new String[]{"com.fr.web.controller.common", "com.fr.web.controller.decision.api.deployment", "com.fr.web.controller.decision.entrance", "com.fr.decision.webservice.exception", "com.fr.web.controller.decision.api.system"});
+    ContextLoader var3 = new ContextLoader(var1);
+    var3.initWebApplicationContext(var0);
+}
+```
+
+查看 `ServerConfig#servletName`，可知 servlet 路径为 `/decision`，也是为什么 web 端的路径前缀为 `/webroot/decision`
+
+```java
+public class ServerConfig extends DefaultConfiguration {
+    private static volatile ServerConfig serverConfig = null;
+    private Conf<String> serverCharset = Holders.simple(this.getDefaultBrowserCharset());
+    private Conf<String> servletName = Holders.simple("decision");
+```
+
+v11 web 端的架构并不复杂，大部分的路由都为于 `com.fr.web` 中，可通过注解 `@RequestMapping` 快速锁定相关路由。
 
 ## 历史漏洞
 
