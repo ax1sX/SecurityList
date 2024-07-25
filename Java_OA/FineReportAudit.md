@@ -8,6 +8,18 @@ FineReport（帆软报表）的安装较为简单，直接双击`windows_x64_Fin
 
 如果要使用设计器，可以从网上找一个激活码（如`设计器激活码：63e70b50-36c054361-9578-69936c1e9a57`），点击激活即可
 
+> v11 版本，web 端地址为 `http://localhost:8075/webroot/decision`。
+
+## 远程调试
+
+修改 `bin/designer.vmoptions` 文件，添加 JVM 调试参数
+
+```
+-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
+```
+
+保存后重启 FineReport 即可。
+
 ## 架构分析
 ### 路由分析
 #### v8/v9
@@ -120,6 +132,12 @@ v10的目录结构相比v8/v9有了变化，web.xml不再位于`/FineReport_9/We
 		<servlet-class>org.apache.catalina.servlets.DefaultServlet</servlet-class>
 	</servlet>
 ```
+
+#### v11
+
+v11 版本的 web.xml 文件位于 `FineReport_11.0/server/conf/web.xml`，与 v10 相比没有变化，路由都通过注解进行配置。v11 的 Web 端基于 SpringBoot 框架编写，同时 v11 将第三方依赖都放在包 `com.fr.third.*` 中。
+
+可通过注解 `@RequestMapping` 快速锁定相关路由
 
 ## 历史漏洞
 
