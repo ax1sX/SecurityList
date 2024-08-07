@@ -2,10 +2,11 @@
 ### 国产软件
 
 * [泛微Ecology] [代码审计](Java_OA/EcologyAudit.md)、[安装说明](Java_OA/Ecology9_install.md)
+* [泛微E-Office] [代码审计与环境搭建](Other_OA/%E6%B3%9B%E5%BE%AEE-Office.md)
+* [泛微云桥e-Bridge] [代码审计](https://blog.csdn.net/baidu_25299117/article/details/140979726?spm=1001.2014.3001.5501)
 * [致远Seeyon] [代码审计](Java_OA/SeeyonAudit.md)、[补丁问题](Java_OA/Seeyon_clazzDecompile.md)
 * [用友NC] [代码审计与环境搭建](Java_OA/yongyou_NC_Audit.md)
 * [蓝凌Landray] [代码审计与环境搭建](Java_OA/LandrayEkpAudit.md)
-* [泛微E-Office] [代码审计与环境搭建](Other_OA/%E6%B3%9B%E5%BE%AEE-Office.md)
 * [帆软报表] [代码审计与环境搭建](Java_OA/FineReportAudit.md)
 * [拓尔思TRS 内容协作平台WCM] [代码审计与环境搭建](Java_OA/WCM_Audit.md)
 * [通达OA] [代码审计与环境搭建](Other_OA/%E9%80%9A%E8%BE%BEOA.md)
