@@ -23,6 +23,7 @@
 * [海康威视综合安防管理平台ivms8700] [代码审计](https://blog.csdn.net/baidu_25299117/article/details/140634959?spm=1001.2014.3001.5502)
 * [红海ehr] [代码审计](https://blog.csdn.net/baidu_25299117/article/details/140672183?spm=1001.2014.3001.5502)
 * [IDocView] [代码审计](https://blog.csdn.net/baidu_25299117/article/details/140750617?spm=1001.2014.3001.5502)
+* [通天星CMSV6] [代码审计](https://blog.csdn.net/baidu_25299117/article/details/140690863?spm=1001.2014.3001.5501)
 
 ### 常见组件
 
