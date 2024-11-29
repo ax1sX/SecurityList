@@ -516,7 +516,7 @@ https://mp.weixin.qq.com/s/o6FDDESJdluob9m6E8dqOQ
 
 这篇文章讲到了上述漏洞链条，文章中说该漏洞鸡肋需要修改配置。但是我们在分析路由白名单判定的isOpenMethod可以看到：
 
-![zentao10.png](/Users/aspir1ng/Documents/share/self/images/zentao10.png)
+![zentao10.png](./images/zentao10.png)
 
 除了用户登录之外，如果当前设置了$this->app->company->guest，并且当前为guest用户，ajax开头的任何方法都可以进行访问。$this->app->company->guest是禅道允许可以配置的[匿名用户功能](https://www.zentao.net/book/zentaopmshelp/58.html)。因为禅道是项目管理软件，这种功能主要是想让子公司或者外包能够不登陆就能看到某些页面或者工作需求等，这种情况（并且情况也不少这种）能够实现未授权RCE。
 
